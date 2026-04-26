@@ -2,235 +2,70 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ponyforge · Six queer ponies and some hats</title>
-    <meta name="description" content="Six queer ponies, some hats, two pastures, and a few buttons that do things. Made by Oliver Newth on a Mac mini." />
-    <meta name="theme-color" content="#ff2d95" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ponyforge</title>
     <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png" />
     <link rel="canonical" href="https://ponyforge.com/" />
-
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Ponyforge" />
-    <meta property="og:title" content="Ponyforge · Six queer ponies and some hats" />
-    <meta property="og:description" content="Six queer ponies, some hats, two pastures, and a few buttons that do things." />
+    <meta name="description" content="Put hats on ponies." />
+    <meta property="og:title" content="Ponyforge" />
+    <meta property="og:description" content="Put hats on ponies." />
     <meta property="og:url" content="https://ponyforge.com/" />
     <meta property="og:image" content="https://ponyforge.com/assets/og-image.png" />
-    <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Ponyforge · Six queer ponies and some hats" />
-    <meta name="twitter:description" content="Six queer ponies, some hats, two pastures, and a few buttons that do things." />
-    <meta name="twitter:image" content="https://ponyforge.com/assets/og-twitter.png" />
-
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800;900&family=Inter:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-
     <link rel="stylesheet" href="./styles.css" />
-
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebSite",
-      "name": "Ponyforge",
-      "url": "https://ponyforge.com/",
-      "description": "Six queer ponies, some hats, two pastures, and a few buttons that do things.",
-      "inLanguage": "en"
-    }
-    </script>
   </head>
   <body>
-    <canvas id="chaos-bg" aria-hidden="true"></canvas>
-    <main class="page">
-      <header class="hero">
-        <p class="hero-eyebrow">A pony thing</p>
-        <h1>Ponyforge</h1>
-        <p class="tagline">
-          Six queer ponies, some hats, two pastures, and a few buttons that do things.
-        </p>
-      </header>
+    <main>
+      <h1>Ponyforge</h1>
 
-      <section class="manifesto" aria-label="What this is">
-        <p>This is a place where you put hats on ponies and nobody asks why.</p>
-        <p>There's nothing to win.</p>
-        <p>You're just here, and so are they.</p>
-      </section>
+      <div class="hats" id="hats">
+        <button class="hat" data-hat="🎩" aria-checked="true">🎩</button>
+        <button class="hat" data-hat="🌼">🌼</button>
+        <button class="hat" data-hat="🧢">🧢</button>
+        <button class="hat" data-hat="👑">👑</button>
+        <button class="hat" data-hat="🕶️">🕶️</button>
+        <button class="hat" data-hat="🪩">🪩</button>
+        <button class="hat" data-hat="🏳️‍🌈">🏳️‍🌈</button>
+        <button class="hat" data-hat="🏳️‍⚧️">🏳️‍⚧️</button>
+        <button class="hat" data-hat="💋">💋</button>
+        <button class="hat" data-hat="🦋">🦋</button>
+        <button class="hat" data-hat="✨">✨</button>
+        <button class="hat" data-hat="🥀">🥀</button>
+      </div>
 
-      <p class="howto">
-        <span class="howto-step"><span class="howto-num">1</span>Pick a hat below.</span>
-        <span class="howto-step"><span class="howto-num">2</span>Click a pony to put it on.</span>
-        <span class="howto-step"><span class="howto-num">3</span>Drag a pony into a pasture.</span>
-        <span class="howto-step"><span class="howto-num">4</span>Press a button. See what happens.</span>
-      </p>
+      <div class="pasture" id="pasture"></div>
 
-      <section class="toolbar" aria-label="Things you can do">
-        <button class="tool" data-action="parade" aria-pressed="false" title="Pride parade across the pastures">
-          <span class="tool-emoji" aria-hidden="true">🏳️‍🌈</span>
-          Big Walk
+      <div class="stable" id="stable">
+        <button class="pony" draggable="true">
+          <span class="hat-slot">🏳️‍🌈</span>
+          <img src="./assets/pony-iris.png" alt="Iris" />
         </button>
-        <button class="tool" data-action="scream-sync" title="Make every pony scream at once">
-          <span class="tool-emoji" aria-hidden="true">📣</span>
-          Scream
+        <button class="pony" draggable="true">
+          <span class="hat-slot">💋</span>
+          <img src="./assets/pony-vesper.png" alt="Vesper" />
         </button>
-        <button class="tool" data-action="randomize" title="Randomize every pony's hat">
-          <span class="tool-emoji" aria-hidden="true">🎰</span>
-          Surprise Me
+        <button class="pony" draggable="true">
+          <span class="hat-slot">🦋</span>
+          <img src="./assets/pony-onyx.png" alt="Onyx" />
         </button>
-        <button class="tool" data-action="spawn" title="Spawn another pony">
-          <span class="tool-emoji" aria-hidden="true">✨</span>
-          One More
+        <button class="pony" draggable="true">
+          <span class="hat-slot">✨</span>
+          <img src="./assets/pony-prism.png" alt="Prism" />
         </button>
-        <button class="tool" data-action="whisper" aria-pressed="false" title="Hover a pony to hear what they're thinking">
-          <span class="tool-emoji" aria-hidden="true">💬</span>
-          Psst
+        <button class="pony" draggable="true">
+          <span class="hat-slot">🏳️‍⚧️</span>
+          <img src="./assets/pony-sable.png" alt="Sable" />
         </button>
-        <button class="tool" data-action="print" title="Open the printable field guide">
-          <span class="tool-emoji" aria-hidden="true">📄</span>
-          Print Field Guide
+        <button class="pony" draggable="true">
+          <span class="hat-slot">🥀</span>
+          <img src="./assets/pony-femme.png" alt="Femme" />
         </button>
-      </section>
-
-      <section class="controls" aria-label="Hats">
-        <h2>Hats, Mostly</h2>
-        <div class="hats" id="hats" role="radiogroup" aria-label="Choose an accessory">
-          <button class="hat" data-hat="🎩" aria-label="Top hat" role="radio" aria-checked="true">🎩</button>
-          <button class="hat" data-hat="🌼" aria-label="Flower crown" role="radio" aria-checked="false">🌼</button>
-          <button class="hat" data-hat="🧢" aria-label="Cap" role="radio" aria-checked="false">🧢</button>
-          <button class="hat" data-hat="👑" aria-label="Crown" role="radio" aria-checked="false">👑</button>
-          <button class="hat" data-hat="🕶️" aria-label="Shades" role="radio" aria-checked="false">🕶️</button>
-          <button class="hat" data-hat="🪩" aria-label="Disco ball" role="radio" aria-checked="false">🪩</button>
-          <button class="hat" data-hat="🏳️‍🌈" aria-label="Pride pin" role="radio" aria-checked="false">🏳️‍🌈</button>
-          <button class="hat" data-hat="🏳️‍⚧️" aria-label="Trans pin" role="radio" aria-checked="false">🏳️‍⚧️</button>
-          <button class="hat" data-hat="💋" aria-label="Lipstick" role="radio" aria-checked="false">💋</button>
-          <button class="hat" data-hat="🦋" aria-label="Butterfly" role="radio" aria-checked="false">🦋</button>
-          <button class="hat" data-hat="✨" aria-label="Glitter" role="radio" aria-checked="false">✨</button>
-          <button class="hat" data-hat="🥀" aria-label="Wilted rose" role="radio" aria-checked="false">🥀</button>
-        </div>
-        <p class="hint">Pick something, then click a pony. You can stack them, and you probably should.</p>
-      </section>
-
-      <section class="pastures" aria-label="Pastures">
-        <article class="pasture" id="pasture-sunrise" data-pasture>
-          <h3>Long Acre</h3>
-          <div class="pasture-floor"></div>
-        </article>
-        <article class="pasture" id="pasture-moonlight" data-pasture>
-          <h3>The Damp Field</h3>
-          <div class="pasture-floor"></div>
-        </article>
-      </section>
-
-      <section class="faq" aria-label="Questions">
-        <p class="faq-eyebrow">Questions</p>
-        <h2>FAQ</h2>
-        <div class="faq-list">
-          <details class="faq-item">
-            <summary>What is Ponyforge?<span class="faq-toggle" aria-hidden="true">[+]</span></summary>
-            <p>A website with six queer ponies. You drag them around, put hats on them, and press buttons to see what happens. That's about it.</p>
-          </details>
-          <details class="faq-item">
-            <summary>Who are these ponies?<span class="faq-toggle" aria-hidden="true">[+]</span></summary>
-            <p>Iris, Vesper, Onyx, Prism, Sable, and Femme Fatale. They each have their own pronouns and their own look. They didn't ask to be here, but they seem fine with it.</p>
-          </details>
-          <details class="faq-item">
-            <summary>Why are they slightly wrong?<span class="faq-toggle" aria-hidden="true">[+]</span></summary>
-            <p>Because perfect is boring, and also because this was made by one person on a computer. The wrongness is on purpose. Mostly.</p>
-          </details>
-          <details class="faq-item">
-            <summary>Can I keep a pony?<span class="faq-toggle" aria-hidden="true">[+]</span></summary>
-            <p>You can't take them off the site, but they'll be here when you come back. They're not going anywhere.</p>
-          </details>
-          <details class="faq-item">
-            <summary>Is this art or a toy?<span class="faq-toggle" aria-hidden="true">[+]</span></summary>
-            <p>It's a website where you put hats on ponies. Whether that's art or a toy is not really my department. I just made it.</p>
-          </details>
-          <details class="faq-item">
-            <summary>Who made this?<span class="faq-toggle" aria-hidden="true">[+]</span></summary>
-            <p>Oliver Newth made this. That's about all there is to say about it.</p>
-          </details>
-        </div>
-      </section>
-
-      <section class="stable" aria-label="The ponies">
-        <h2>Roll Call</h2>
-        <div class="pony-row" id="pony-row">
-          <button class="pony" id="pony-iris" draggable="true"
-            data-portrait="./assets/pony-iris.png"
-            data-name="Iris"
-            data-pronouns="they/them">
-            <span class="hat-slot" aria-hidden="true">🏳️‍🌈</span>
-            <img class="portrait" src="./assets/pony-iris.png" alt="Dark horse with rainbow ribbons braided into the mane" />
-            <span class="pony-name" data-editable contenteditable="true" spellcheck="false">Iris</span>
-            <span class="pony-pronouns">they/them</span>
-          </button>
-          <button class="pony" id="pony-vesper" draggable="true"
-            data-portrait="./assets/pony-vesper.png"
-            data-name="Vesper"
-            data-pronouns="she/her">
-            <span class="hat-slot" aria-hidden="true">💋</span>
-            <img class="portrait" src="./assets/pony-vesper.png" alt="Pale palomino horse with damp orange and pink mane" />
-            <span class="pony-name" data-editable contenteditable="true" spellcheck="false">Vesper</span>
-            <span class="pony-pronouns">she/her</span>
-          </button>
-          <button class="pony" id="pony-onyx" draggable="true"
-            data-portrait="./assets/pony-onyx.png"
-            data-name="Onyx"
-            data-pronouns="he/they">
-            <span class="hat-slot" aria-hidden="true">🦋</span>
-            <img class="portrait" src="./assets/pony-onyx.png" alt="Black horse with magenta and cyan rim light and a holographic heart pin" />
-            <span class="pony-name" data-editable contenteditable="true" spellcheck="false">Onyx</span>
-            <span class="pony-pronouns">he/they</span>
-          </button>
-          <button class="pony" id="pony-prism" draggable="true"
-            data-portrait="./assets/pony-prism.png"
-            data-name="Prism"
-            data-pronouns="xe/xem">
-            <span class="hat-slot" aria-hidden="true">✨</span>
-            <img class="portrait" src="./assets/pony-prism.png" alt="Chestnut horse with iridescent rainbow shimmer and glitter mustache" />
-            <span class="pony-name" data-editable contenteditable="true" spellcheck="false">Prism</span>
-            <span class="pony-pronouns">xe/xem</span>
-          </button>
-          <button class="pony" id="pony-sable" draggable="true"
-            data-portrait="./assets/pony-sable.png"
-            data-name="Sable"
-            data-pronouns="they/she">
-            <span class="hat-slot" aria-hidden="true">🏳️‍⚧️</span>
-            <img class="portrait" src="./assets/pony-sable.png" alt="Dapple grey horse with non-binary flag braids and pearl choker" />
-            <span class="pony-name" data-editable contenteditable="true" spellcheck="false">Sable</span>
-            <span class="pony-pronouns">they/she</span>
-          </button>
-          <button class="pony" id="pony-femme" draggable="true"
-            data-portrait="./assets/pony-femme.png"
-            data-name="Femme Fatale"
-            data-pronouns="she/her">
-            <span class="hat-slot" aria-hidden="true">🥀</span>
-            <img class="portrait" src="./assets/pony-femme.png" alt="Strawberry roan horse with fishnet fascinator and trans flag ribbons" />
-            <span class="pony-name" data-editable contenteditable="true" spellcheck="false">Femme Fatale</span>
-            <span class="pony-pronouns">she/her</span>
-          </button>
-        </div>
-      </section>
-
-      <footer class="site-footer">
-        <p class="colophon">This site was made by Oliver Newth on a Mac mini that is doing its best.</p>
-        <p class="colophon-meta">
-          <a href="https://github.com/n3wth/ponyforge">github.com/n3wth/ponyforge</a>
-          <span aria-hidden="true">·</span>
-          <span>© 2026 Ponyforge</span>
-        </p>
-      </footer>
+      </div>
     </main>
 
-    <section class="field-guide" id="field-guide" aria-hidden="true"></section>
-
-    <div class="whisper" id="whisper" aria-hidden="true"></div>
-    <div class="toast" id="toast" role="status" aria-live="polite"></div>
-
-    <script src="./audio.js"></script>
     <script src="./script.js"></script>
-    <script src="./effects.js"></script>
   </body>
 </html>
