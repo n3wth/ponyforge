@@ -125,9 +125,8 @@ body::before {
   text-transform: none;
 }
 
-/* tiny smallcaps label sitting next to the giant H1 */
-.hero::before {
-  content: "01 — Pasture / Parade / Press";
+.hero-eyebrow {
+  margin: 0;
   font-family: var(--font-mono);
   font-size: 0.72rem;
   letter-spacing: 0.18em;
@@ -141,10 +140,74 @@ body::before {
     grid-template-columns: 2fr 1fr;
     align-items: end;
   }
+  .hero-eyebrow { grid-column: 1; grid-row: 1; }
   .hero h1 { grid-column: 1; grid-row: 2; }
-  .hero::before { grid-column: 1; grid-row: 1; }
   .hero .tagline { grid-column: 2; grid-row: 2; align-self: end; padding-bottom: 0.6rem; }
 }
+
+/* ---------- MANIFESTO ---------- */
+
+.manifesto {
+  margin: 2.5rem 0 1.75rem;
+  max-width: 56ch;
+  border-left: 2px solid var(--accent);
+  padding: 0.25rem 0 0.25rem 1.25rem;
+}
+
+.manifesto p {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1.35rem, 2.4vw, 1.75rem);
+  line-height: 1.15;
+  color: var(--paper);
+  letter-spacing: -0.01em;
+}
+
+.manifesto p + p { margin-top: 0.45rem; }
+
+.manifesto p:nth-child(2) { color: var(--accent); }
+
+/* ---------- SITE FOOTER ---------- */
+
+.site-footer {
+  margin-top: 4rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid rgb(255 255 255 / 12%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.colophon {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--paper);
+  opacity: 0.72;
+}
+
+.colophon-meta {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  color: var(--paper);
+  opacity: 0.5;
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.colophon-meta a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-underline-offset: 3px;
+}
+
+.colophon-meta a:hover { color: var(--accent); }
 
 /* ---------- SECTION HEADINGS ---------- */
 
