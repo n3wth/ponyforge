@@ -638,6 +638,160 @@ body::after {
   100% { transform: translate(0, 0); }
 }
 
+.lore-card-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at center, rgb(20 0 30 / 70%), rgb(0 0 0 / 92%));
+  animation: lore-fade 180ms ease-out;
+}
+
+@keyframes lore-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.lore-card {
+  width: min(440px, 92vw);
+  padding: 3px;
+  border-radius: 18px;
+  background: var(--pride);
+  background-size: 300% 100%;
+  animation: hue-cycle 3s linear infinite, lore-pop 320ms cubic-bezier(.2,1.4,.4,1);
+  box-shadow:
+    0 0 0 4px #000,
+    0 0 40px var(--accent),
+    0 0 90px var(--accent-2),
+    0 30px 60px rgb(0 0 0 / 70%);
+  position: relative;
+}
+
+@keyframes lore-pop {
+  0% { transform: scale(0.7) rotate(-3deg); opacity: 0; }
+  60% { transform: scale(1.06) rotate(1deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); }
+}
+
+.lore-card-inner {
+  background: linear-gradient(180deg, #110018 0%, #06000c 100%);
+  border-radius: 15px;
+  padding: 1.2rem 1.3rem 1rem;
+  color: #fff;
+  font-family: "Helvetica Neue", "Arial", sans-serif;
+}
+
+.lore-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.7rem;
+}
+
+.lore-card-serial {
+  font-family: "JetBrains Mono", "Menlo", "Courier New", monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  color: var(--accent-3);
+  background: rgb(0 0 0 / 60%);
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--accent-3);
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.lore-card-close {
+  background: transparent;
+  border: 2px solid var(--accent);
+  color: #fff;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 999px;
+  font-size: 1.1rem;
+  font-weight: 900;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+.lore-card-close:hover { background: var(--accent); }
+
+.lore-card-name {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  background: var(--pride);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(2px 2px 0 #000);
+  line-height: 1.05;
+}
+
+.lore-card-pronouns {
+  margin: 0.25rem 0 0.9rem;
+  font-family: "JetBrains Mono", "Menlo", "Courier New", monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+}
+
+.lore-card-bio {
+  margin: 0 0 1rem;
+  font-size: 0.98rem;
+  line-height: 1.5;
+  color: #f6e7ff;
+  font-weight: 500;
+}
+
+.lore-card-meta {
+  margin: 0 0 0.8rem;
+  display: grid;
+  gap: 0.4rem;
+  border-top: 1px dashed rgb(255 255 255 / 22%);
+  border-bottom: 1px dashed rgb(255 255 255 / 22%);
+  padding: 0.7rem 0;
+}
+
+.lore-card-meta > div {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  gap: 0.6rem;
+  align-items: baseline;
+}
+
+.lore-card-meta dt {
+  font-family: "JetBrains Mono", "Menlo", "Courier New", monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent-3);
+  margin: 0;
+}
+
+.lore-card-meta dd {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.lore-card-foot {
+  margin: 0;
+  font-family: "JetBrains Mono", "Menlo", "Courier New", monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 50%);
+  text-align: center;
+}
+
 @media (max-width: 560px) {
   .pony-row {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));

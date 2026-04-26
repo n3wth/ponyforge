@@ -44,6 +44,115 @@ const WHISPERS = [
   "the meadow remembers",
   "you make the herd feel held",
   "queer joy is a load-bearing wall",
+  "i ate the moon and it tasted like pennies",
+  "every gender is a small wet animal",
+  "we found god in the sephora at 2am",
+  "the saints are all girls i used to know",
+  "your aura is doing something to the wifi",
+  "i am the dyke your horoscope warned you about",
+  "drink water it's the most cursed thing you'll do today",
+  "we are not haunted, we are merely abundant",
+  "soft butch energy radiating off the milk fridge",
+  "my therapist said this would happen",
+  "the rose quartz called, it told me everything",
+  "i identify as a soft-launch",
+  "every pony is one bad night from becoming a ghost",
+  "yes the moss is sentient and yes she knows",
+  "i love you in a public-domain kind of way",
+  "two femmes, one prophecy",
+  "the meadow has been polycule-coded since 1998",
+  "stop crying you'll rust your eyeliner",
+  "we wake at 3:33 to drink the air",
+  "transition is a recipe and the oven is the sun",
+  "you smell like a library and a knife",
+  "every horse is a girl if you ask politely",
+  "i'm not delusional i'm pre-canonical",
+  "the field knows your deadname and is not using it",
+  "kiss the freak inside the freak",
+  "all my exes are constellations now and they're petty",
+  "we will be tender or we will be terrible",
+  "the bible is fanfic and we have notes",
+  "saturn return but make it cunt",
+  "i drank a smoothie made of every prayer i made",
+  "she's not a witch she's just consistent",
+  "reblog if you've been crying in a parking lot",
+  "the herd knows. the herd has always known",
+  "tape your heart shut with masking tape",
+  "every bog is a chapel if you let it",
+  "i miss you in tenses that haven't been invented",
+  "lavender does not consent to being normal",
+  "the pasture is a panopticon of love",
+];
+
+const LORE = {
+  "pony-iris": {
+    name: "Iris Multitude",
+    pronouns: "they/them",
+    bio: "Born during a power outage in a community garden. Speaks fluent affirmation and once unionized a flock of pigeons.",
+    vibe: "soft butch oracle",
+    sign: "Pisces stellium",
+    snack: "salted plum and oat milk",
+  },
+  "pony-vesper": {
+    name: "Vesper Ann St. Cloud",
+    pronouns: "she/her",
+    bio: "Patron saint of last calls and lipgloss. Cried at a Lana del Rey concert in 2014 and the rain has not stopped since.",
+    vibe: "wine-mom mystic",
+    sign: "Scorpio rising",
+    snack: "maraschino cherries straight from the jar",
+  },
+  "pony-onyx": {
+    name: "Onyx Ferromagnet",
+    pronouns: "he/they",
+    bio: "Carpenter of small dramas. Collects keys to apartments he no longer lives in and wears them like a chestplate.",
+    vibe: "sad boy with a toolbelt",
+    sign: "Capricorn moon",
+    snack: "burnt toast with honey",
+  },
+  "pony-prism": {
+    name: "Prism Hazelweather",
+    pronouns: "xe/xem",
+    bio: "Refracted into being from a disco ball at a wedding xe was not invited to. Holds every color and picks favorites by mood.",
+    vibe: "iridescent twink prophet",
+    sign: "Gemini sun, obviously",
+    snack: "edible glitter and cold espresso",
+  },
+  "pony-sable": {
+    name: "Sable Quietstorm",
+    pronouns: "they/she",
+    bio: "Raised by librarians and one large goose. Knows the Dewey decimal of every feeling and shelves them alphabetically.",
+    vibe: "non-binary cottage cleric",
+    sign: "Virgo, but tender",
+    snack: "rye bread, real butter, flaky salt",
+  },
+  "pony-femme": {
+    name: "Femme Fatale Delacroix",
+    pronouns: "she/her",
+    bio: "Walked out of a 1974 perfume ad and never looked back. Has stabbed exactly one man in self-defense and one in self-expression.",
+    vibe: "trans goddess of soft revenge",
+    sign: "Leo with a Scorpio venus",
+    snack: "pomegranate seeds, one at a time",
+  },
+};
+
+const SPAWN_LORE_BIOS = [
+  "Materialized from a group chat at 4am. Refuses to clarify what gender means to xem.",
+  "Found in a thrift store between two velvet jackets. Has been emotionally available ever since.",
+  "Allegedly the result of a manifestation circle that ran long. The circle still owes them rent.",
+  "Speaks in unsent texts. Owns three tarot decks and trusts none of them.",
+  "Was a rumor before being a pony. Some say still is.",
+];
+const SPAWN_LORE_VIBES = [
+  "haunted houseplant", "femme errant", "gentle arsonist",
+  "library cryptid", "soft-launch saint", "aux-cord shaman",
+];
+const SPAWN_LORE_SIGNS = [
+  "Aquarius moon", "Cancer rising", "Sagittarius mercury",
+  "Taurus venus", "Libra sun", "void placement",
+];
+const SPAWN_LORE_SNACKS = [
+  "cold pierogi", "honeycomb and black coffee", "saltines, dramatically",
+  "mango with tajin", "a single grape", "ice, just ice",
 ];
 
 let draggedPonyId = null;
@@ -83,8 +192,14 @@ function initPonies(ponyList) {
       if (window.PonyAudio) window.PonyAudio.drag();
     });
 
+    attachLongPress(pony);
+
     pony.addEventListener("click", (event) => {
       if (event.target.matches("[data-editable]")) return;
+      if (pony.dataset.suppressClick === "1") {
+        pony.dataset.suppressClick = "0";
+        return;
+      }
       dressPony(pony, selectedHat);
       shudder(pony);
       playBizarreNoise();
@@ -215,6 +330,14 @@ function spawnPony() {
   pony.dataset.portrait = portrait;
   pony.dataset.name = name;
   pony.dataset.pronouns = pronouns;
+  LORE[id] = {
+    name: `${name} ${randomFrom(["of the", "from", "née", "the"])} ${randomFrom(["Subsidized Pasture", "Long Hallway", "Wet Year", "Gentle Cult", "Quiet Riot"])}`,
+    pronouns,
+    bio: randomFrom(SPAWN_LORE_BIOS),
+    vibe: randomFrom(SPAWN_LORE_VIBES),
+    sign: randomFrom(SPAWN_LORE_SIGNS),
+    snack: randomFrom(SPAWN_LORE_SNACKS),
+  };
   pony.innerHTML = `
     <span class="hat-slot" aria-hidden="true">${hat}</span>
     <img class="portrait" src="${portrait}" alt="Hyperreal queer pony portrait" />
@@ -313,6 +436,121 @@ function playBizarreNoise(intensity = 1) {
   if (intensity >= 1.3) window.PonyAudio.spawn();
   else if (intensity >= 1.1) window.PonyAudio.randomize();
   else window.PonyAudio.ponyClick();
+}
+
+function randomFrom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+const LONG_PRESS_MS = 800;
+let activeLoreCard = null;
+
+function attachLongPress(pony) {
+  let timer = null;
+  let startX = 0;
+  let startY = 0;
+  let fired = false;
+
+  const start = (event) => {
+    if (event.target.matches("[data-editable]")) return;
+    fired = false;
+    const point = event.touches ? event.touches[0] : event;
+    startX = point.clientX;
+    startY = point.clientY;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      fired = true;
+      pony.dataset.suppressClick = "1";
+      showLoreCard(pony);
+    }, LONG_PRESS_MS);
+  };
+
+  const move = (event) => {
+    const point = event.touches ? event.touches[0] : event;
+    const dx = Math.abs(point.clientX - startX);
+    const dy = Math.abs(point.clientY - startY);
+    if (dx > 8 || dy > 8) {
+      clearTimeout(timer);
+    }
+  };
+
+  const cancel = () => {
+    clearTimeout(timer);
+  };
+
+  pony.addEventListener("mousedown", start);
+  pony.addEventListener("mousemove", move);
+  pony.addEventListener("mouseup", cancel);
+  pony.addEventListener("mouseleave", cancel);
+  pony.addEventListener("dragstart", cancel);
+  pony.addEventListener("touchstart", start, { passive: true });
+  pony.addEventListener("touchmove", move, { passive: true });
+  pony.addEventListener("touchend", cancel);
+  pony.addEventListener("touchcancel", cancel);
+}
+
+function showLoreCard(pony) {
+  const lore = LORE[pony.id];
+  if (!lore) return;
+  closeLoreCard();
+
+  const serial = makeSerial(pony.id);
+  const overlay = document.createElement("div");
+  overlay.className = "lore-card-overlay";
+  overlay.innerHTML = `
+    <div class="lore-card" role="dialog" aria-label="Pony lore card">
+      <div class="lore-card-inner">
+        <div class="lore-card-header">
+          <span class="lore-card-serial">PFG-${serial}</span>
+          <button class="lore-card-close" aria-label="Close">×</button>
+        </div>
+        <h3 class="lore-card-name"></h3>
+        <p class="lore-card-pronouns"></p>
+        <p class="lore-card-bio"></p>
+        <dl class="lore-card-meta">
+          <div><dt>vibe</dt><dd class="lore-card-vibe"></dd></div>
+          <div><dt>sign</dt><dd class="lore-card-sign"></dd></div>
+          <div><dt>snack</dt><dd class="lore-card-snack"></dd></div>
+        </dl>
+        <p class="lore-card-foot">field-issued · do not laminate</p>
+      </div>
+    </div>
+  `;
+  overlay.querySelector(".lore-card-name").textContent = lore.name;
+  overlay.querySelector(".lore-card-pronouns").textContent = lore.pronouns;
+  overlay.querySelector(".lore-card-bio").textContent = lore.bio;
+  overlay.querySelector(".lore-card-vibe").textContent = lore.vibe;
+  overlay.querySelector(".lore-card-sign").textContent = lore.sign;
+  overlay.querySelector(".lore-card-snack").textContent = lore.snack;
+
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay || event.target.closest(".lore-card-close")) {
+      closeLoreCard();
+    }
+  });
+  document.addEventListener("keydown", onLoreEsc);
+  document.body.appendChild(overlay);
+  activeLoreCard = overlay;
+  playBizarreNoise(0.6);
+}
+
+function closeLoreCard() {
+  if (activeLoreCard) {
+    activeLoreCard.remove();
+    activeLoreCard = null;
+    document.removeEventListener("keydown", onLoreEsc);
+  }
+}
+
+function onLoreEsc(event) {
+  if (event.key === "Escape") closeLoreCard();
+}
+
+function makeSerial(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  const hex = h.toString(16).toUpperCase().padStart(8, "0");
+  return `${hex.slice(0, 4)}-${hex.slice(4, 8)}`;
 }
 
 function playPrideFanfare() {
