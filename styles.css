@@ -464,6 +464,149 @@ body {
   .ring__hat .g { font-size: 18px; }
 }
 
+/* ============================================================ EMERGENT — secrets layer */
+
+/* horse "facing" (idle behavior) — flips horizontally, slow */
+.pony.is-facing img {
+  transform: scaleX(-1);
+  transition: transform 1800ms var(--ease-soft);
+}
+.pony img {
+  transition: transform 1800ms var(--ease-soft);
+}
+
+/* tiny mono notes that appear under devoted horses */
+.pony__note {
+  position: absolute;
+  bottom: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 800ms var(--ease-soft);
+}
+.pony.is-seen .pony__note { opacity: 1; }
+.pony__note .nt {
+  color: var(--accent);
+}
+
+/* simultaneous head-dip on PONY */
+.pony.is-bowing .hat-slot {
+  animation: pony-bow 1100ms var(--ease-soft) both;
+}
+@keyframes pony-bow {
+  0%, 100% { transform: translate(-50%, 0) rotate(0deg); }
+  40%, 60% { transform: translate(-50%, 14px) rotate(-6deg); }
+}
+.pony.is-bowing img {
+  animation: pony-bow-img 1100ms var(--ease-soft) both;
+}
+@keyframes pony-bow-img {
+  0%, 100% { transform: translateY(0) scaleX(var(--face-x, 1)); }
+  40%, 60% { transform: translateY(6px) scaleX(var(--face-x, 1)); }
+}
+
+/* ribbon falling from above (crown + sable combo) */
+.ribbon {
+  position: fixed;
+  width: 4px;
+  height: 38px;
+  background: linear-gradient(to bottom, #c9a13a, #8a6c1c);
+  pointer-events: none;
+  z-index: 900;
+  opacity: 0;
+}
+.ribbon.is-falling {
+  animation: ribbon-fall 1600ms var(--ease-fall) forwards;
+}
+@keyframes ribbon-fall {
+  0%   { opacity: 0; transform: translateY(-180px) rotate(-2deg); }
+  10%  { opacity: 1; }
+  85%  { opacity: 1; transform: translateY(0) rotate(3deg); }
+  100% { opacity: 0.85; transform: translateY(0) rotate(3deg); }
+}
+
+/* slow rotation of all hats (disco combo) */
+.paddock.is-spinning .hat-slot {
+  animation: hat-orbit 6000ms linear 1;
+}
+@keyframes hat-orbit {
+  to { transform: translate(-50%, 0) rotate(360deg); }
+}
+
+/* drifting petal (wilted rose + femme combo) */
+.petal {
+  position: fixed;
+  font-size: 14px;
+  pointer-events: none;
+  z-index: 900;
+  opacity: 0;
+}
+.petal.is-drifting {
+  animation: petal-drift 7200ms linear forwards;
+}
+@keyframes petal-drift {
+  0%   { opacity: 0; transform: translate(0,0) rotate(0deg); }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx, 320px), var(--dy, 60px)) rotate(540deg); }
+}
+
+/* hat shake (rejection) */
+.hat-slot.is-shaking {
+  animation: hat-shake 520ms var(--ease-soft) both;
+}
+@keyframes hat-shake {
+  0%, 100% { transform: translate(-50%, 0) rotate(0deg); }
+  20%      { transform: translate(calc(-50% - 6px), 0) rotate(-8deg); }
+  60%      { transform: translate(calc(-50% + 6px), 0) rotate(8deg); }
+}
+
+/* moon (midnight) */
+.moon {
+  position: absolute;
+  top: 50%;
+  right: clamp(1.2rem, 3vw, 2rem);
+  transform: translateY(-50%);
+  font-size: 14px;
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 3;
+  filter: grayscale(0.4);
+}
+
+/* saddle cursor */
+.paddock.is-saddled,
+.paddock.is-saddled .pony {
+  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'><text y='22' font-size='22'>🐴</text></svg>") 14 14, grab;
+}
+
+/* unannounced 7th horse — tiny, between 3:33 and 3:34 */
+.ghost {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--serif);
+  font-size: 11px;
+  letter-spacing: 0.4em;
+  color: var(--ink-3);
+  pointer-events: none;
+  opacity: 0;
+  z-index: 50;
+  animation: ghost-breathe 4000ms var(--ease-soft) both;
+}
+@keyframes ghost-breathe {
+  0%, 100% { opacity: 0; }
+  50%      { opacity: 0.6; }
+}
+
 /* ============================================================ A11Y / MOTION */
 
 @media (prefers-reduced-motion: reduce) {
