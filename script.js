@@ -363,6 +363,274 @@
     window.addEventListener('load', () => requestAnimationFrame(init), { once: true })
   }
 
+  // ---------------------------------------------------------- LIVING WORLD
+  // The world responds to the user. Quiet generative layer:
+  // - wandering inspector
+  // - procedurally placed hay (seeded PRNG, crushed under horses)
+  // - wind shifts (subtle SVG sway; not particles)
+  // - gaze (heads turn toward cursor, max 4deg)
+  // - breath cycle per horse
+  // - field journal (localStorage)
+
+  const hayfield  = document.getElementById('hayfield')
+  const inspector = document.getElementById('inspector')
+  const journal   = document.getElementById('journal')
+
+  // seeded PRNG (mulberry32)
+  function mulberry32(seed) {
+    let t = seed >>> 0
+    return function () {
+      t = (t + 0x6D2B79F5) >>> 0
+      let r = t
+      r = Math.imul(r ^ (r >>> 15), r | 1)
+      r ^= r + Math.imul(r ^ (r >>> 7), r | 61)
+      return ((r ^ (r >>> 14)) >>> 0) / 4294967296
+    }
+  }
+
+  // ---- HAY -------------------------------------------------------
+  // Each strand: { x, y, len, ang, baseAng, el, crushed }
+  const hay = []
+
+  function buildHay() {
+    if (!hayfield) return
+    const r = paddock.getBoundingClientRect()
+    while (hayfield.firstChild) hayfield.removeChild(hayfield.firstChild)
+    hay.length = 0
+    const rng = mulberry32(0x70F0)
+    const count = Math.round((r.width * r.height) / 18000) // density
+    const ns = 'http://www.w3.org/2000/svg'
+    for (let i = 0; i < count; i++) {
+      const x = rng() * r.width
+      const y = 90 + rng() * (r.height - 160)
+      const len = 4 + rng() * 7
+      const baseAng = -90 + (rng() - 0.5) * 60   // mostly upward
+      const el = document.createElementNS(ns, 'line')
+      el.setAttribute('class', 'hay')
+      el.setAttribute('x1', x.toFixed(1))
+      el.setAttribute('y1', y.toFixed(1))
+      const rad = baseAng * Math.PI / 180
+      el.setAttribute('x2', (x + Math.cos(rad) * len).toFixed(1))
+      el.setAttribute('y2', (y + Math.sin(rad) * len).toFixed(1))
+      hayfield.appendChild(el)
+      hay.push({ x, y, len, ang: baseAng, baseAng, el, crushed: false, crushedAt: 0 })
+    }
+  }
+
+  function updateHayCrush() {
+    if (!hay.length) return
+    const r = paddock.getBoundingClientRect()
+    const now = performance.now()
+    // build occupied rects from each pony
+    const rects = ponies.map(p => {
+      const pw = p.offsetWidth, ph = p.offsetHeight
+      return {
+        l: (p._x || 0) + pw * 0.08,
+        t: (p._y || 0) + ph * 0.50,
+        r: (p._x || 0) + pw * 0.92,
+        b: (p._y || 0) + ph * 1.02,
+      }
+    })
+    for (const s of hay) {
+      let under = false
+      for (const rc of rects) {
+        if (s.x >= rc.l && s.x <= rc.r && s.y >= rc.t && s.y <= rc.b) { under = true; break }
+      }
+      if (under && !s.crushed) {
+        s.crushed = true
+        s.crushedAt = now
+        s.el.classList.add('is-crushed')
+      } else if (!under && s.crushed && (now - s.crushedAt) > 4000) {
+        s.crushed = false
+        s.el.classList.remove('is-crushed')
+      }
+    }
+  }
+
+  // ---- WIND ------------------------------------------------------
+  // Wind has a direction (degrees, 0=N) and strength (0..1). Shifts every few minutes.
+  const wind = { dir: 270, target: 270, strength: 0.4, t: performance.now(), nextShift: 0 }
+  const COMPASS = ['N','NE','E','SE','S','SW','W','NW']
+  function compass(deg) {
+    const i = Math.round(((deg % 360 + 360) % 360) / 45) % 8
+    return COMPASS[i]
+  }
+  function shiftWind() {
+    wind.target = Math.floor(Math.random() * 360)
+    wind.strength = 0.2 + Math.random() * 0.6
+    wind.nextShift = performance.now() + (180000 + Math.random() * 240000) // 3-7 min
+    queueJournal()
+  }
+  shiftWind()
+
+  // simple value noise for hay sway
+  function noise1(x) {
+    const i = Math.floor(x), f = x - i
+    const a = Math.sin(i * 12.9898) * 43758.5453
+    const b = Math.sin((i + 1) * 12.9898) * 43758.5453
+    const u = f * f * (3 - 2 * f)
+    return ((a - Math.floor(a)) * (1 - u) + (b - Math.floor(b)) * u) * 2 - 1
+  }
+
+  function applyWind(now) {
+    // ease wind direction toward target
+    const d = ((wind.target - wind.dir + 540) % 360) - 180
+    wind.dir += d * 0.0008
+    if (now > wind.nextShift) shiftWind()
+    if (reduceMotion) return
+    // sway hay
+    const t = now * 0.0006
+    const windRad = wind.dir * Math.PI / 180
+    for (let i = 0; i < hay.length; i++) {
+      const s = hay[i]
+      if (s.crushed) continue
+      const sway = noise1(t + i * 0.13) * 18 * wind.strength
+      const ang = s.baseAng + sway
+      const rad = ang * Math.PI / 180
+      // tiny lateral push from wind direction
+      const push = Math.cos(windRad) * 0.6 * wind.strength
+      s.el.setAttribute('x2', (s.x + Math.cos(rad) * s.len + push).toFixed(1))
+      s.el.setAttribute('y2', (s.y + Math.sin(rad) * s.len).toFixed(1))
+    }
+  }
+
+  // ---- GAZE + BREATH ---------------------------------------------
+  let mouseX = -9999, mouseY = -9999
+  window.addEventListener('pointermove', (e) => {
+    mouseX = e.clientX; mouseY = e.clientY
+  }, { passive: true })
+  window.addEventListener('pointerleave', () => { mouseX = -9999; mouseY = -9999 })
+
+  const breathPhase = ponies.map((_, i) => Math.random() * Math.PI * 2 + i * 0.7)
+
+  function updatePoniesLive(now) {
+    const t = now * 0.001
+    for (let i = 0; i < ponies.length; i++) {
+      const p = ponies[i]
+      // breath
+      let breath = 1
+      if (!reduceMotion && p !== dragging) {
+        breath = 1 + Math.sin(t * (Math.PI * 2 / 4) + breathPhase[i]) * 0.006
+      }
+      p.style.setProperty('--breath', breath.toFixed(4))
+      // gaze
+      let gaze = 0
+      if (!reduceMotion && mouseX > -1000 && p !== dragging) {
+        const r = p.getBoundingClientRect()
+        const cx = r.left + r.width / 2
+        const cy = r.top + r.height / 2
+        const dx = mouseX - cx
+        const dy = mouseY - cy
+        const dist = Math.hypot(dx, dy)
+        const near = Math.max(0, 1 - dist / 360)
+        gaze = (dx / Math.max(dist, 1)) * 4 * near
+        // dampen with previous
+        const prev = p._gaze || 0
+        gaze = prev + (gaze - prev) * 0.08
+        p._gaze = gaze
+      }
+      p.style.setProperty('--gaze', gaze.toFixed(2) + 'deg')
+    }
+  }
+
+  // ---- INSPECTOR -------------------------------------------------
+  const insp = {
+    active: false, x: 0, y: 0, vx: 0, dir: 1,
+    nextRun: performance.now() + 15000 + Math.random() * 30000,
+    stamped: new WeakSet(),
+  }
+  function startInspector() {
+    if (insp.active || reduceMotion) return
+    const r = paddock.getBoundingClientRect()
+    insp.dir = Math.random() < 0.5 ? 1 : -1
+    insp.y = 80 + Math.random() * (r.height - 160)
+    insp.x = insp.dir > 0 ? -120 : r.width + 20
+    insp.vx = insp.dir * (16 + Math.random() * 14)  // px/sec
+    insp.active = true
+    inspector.classList.add('is-walking')
+  }
+  function stopInspector() {
+    insp.active = false
+    inspector.classList.remove('is-walking')
+    insp.nextRun = performance.now() + (90000 + Math.random() * 210000) // 90-300s
+  }
+  function updateInspector(now, dt) {
+    if (!insp.active) {
+      if (now >= insp.nextRun) startInspector()
+      return
+    }
+    const r = paddock.getBoundingClientRect()
+    insp.x += insp.vx * dt
+    inspector.style.setProperty('--ix', insp.x.toFixed(1) + 'px')
+    inspector.style.setProperty('--iy', insp.y.toFixed(1) + 'px')
+    // stamp horses we pass
+    for (const p of ponies) {
+      if (insp.stamped.has(p)) continue
+      const px = (p._x || 0), py = (p._y || 0)
+      const pw = p.offsetWidth, ph = p.offsetHeight
+      const ix = insp.x + 60   // mid of inspector text
+      const iy = insp.y + 7
+      if (ix >= px && ix <= px + pw && Math.abs(iy - (py + ph / 2)) < ph / 2) {
+        insp.stamped.add(p)
+        const stamp = p.querySelector('.pony__stamp')
+        if (stamp) {
+          stamp.classList.add('is-on')
+          setTimeout(() => stamp.classList.remove('is-on'), 2000)
+          setTimeout(() => insp.stamped.delete(p), 6000)
+        }
+      }
+    }
+    if ((insp.dir > 0 && insp.x > r.width + 80) ||
+        (insp.dir < 0 && insp.x < -200)) {
+      stopInspector()
+    }
+  }
+
+  // ---- JOURNAL ---------------------------------------------------
+  let journalDirty = true
+  function queueJournal() { journalDirty = true }
+
+  function fmtDate(d) {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    return months[d.getMonth()] + ' ' + d.getDate()
+  }
+
+  function updateJournal() {
+    if (!journalDirty) return
+    journalDirty = false
+    const placed = ponies.length
+    const line = `${fmtDate(new Date())} · ${placed} horses placed · wind from ${compass(wind.dir)}`
+    journal.textContent = line
+    journal.classList.add('is-on')
+    journal.setAttribute('aria-hidden', 'false')
+    try { localStorage.setItem('pf.journal', line) } catch (_) {}
+  }
+
+  // restore last journal line briefly so persistence is visible
+  try {
+    const prev = localStorage.getItem('pf.journal')
+    if (prev) { journal.textContent = prev; journal.classList.add('is-on'); journal.setAttribute('aria-hidden', 'false') }
+  } catch (_) {}
+
+  // ---- TICKER ----------------------------------------------------
+  let lastT = performance.now()
+  function tick(now) {
+    const dt = Math.min(0.05, (now - lastT) / 1000)
+    lastT = now
+    applyWind(now)
+    updatePoniesLive(now)
+    updateHayCrush()
+    updateInspector(now, dt)
+    updateJournal()
+    requestAnimationFrame(tick)
+  }
+  requestAnimationFrame(tick)
+
+  // build hay after layout
+  const buildHayDeferred = () => requestAnimationFrame(() => { buildHay(); queueJournal() })
+  if (document.readyState === 'complete') buildHayDeferred()
+  else window.addEventListener('load', buildHayDeferred, { once: true })
+
   // resize: keep relative positions but clamp inside new viewport
   let resizeQ = false
   window.addEventListener('resize', () => {
@@ -378,6 +646,7 @@
         setXY(p, x, y)
       })
       sortDepth()
+      buildHay()
     })
   })
 })()

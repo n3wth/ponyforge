@@ -55,40 +55,52 @@
         <button class="pony" data-name="Iris" data-plate="PF·001" data-hat="🏳️‍🌈"
                 aria-label="Iris — drag to move, press space to pick a hat">
           <span class="pony__plate">PF·001</span>
+          <span class="pony__stamp" aria-hidden="true">INSPECTED</span>
           <span class="hat-slot" aria-hidden="true">🏳️‍🌈</span>
           <img src="./assets/pony-iris.png" alt="Iris, a dark bay mare with braided forelock" draggable="false" />
         </button>
         <button class="pony" data-name="Vesper" data-plate="PF·002" data-hat="💋"
                 aria-label="Vesper — drag to move, press space to pick a hat">
           <span class="pony__plate">PF·002</span>
+          <span class="pony__stamp" aria-hidden="true">INSPECTED</span>
           <span class="hat-slot" aria-hidden="true">💋</span>
           <img src="./assets/pony-vesper.png" alt="Vesper, a roan mare at dusk" draggable="false" />
         </button>
         <button class="pony" data-name="Onyx" data-plate="PF·003" data-hat="🦋"
                 aria-label="Onyx — drag to move, press space to pick a hat">
           <span class="pony__plate">PF·003</span>
+          <span class="pony__stamp" aria-hidden="true">INSPECTED</span>
           <span class="hat-slot" aria-hidden="true">🦋</span>
           <img src="./assets/pony-onyx.png" alt="Onyx, a black gelding in the woods" draggable="false" />
         </button>
         <button class="pony" data-name="Prism" data-plate="PF·004" data-hat="✨"
                 aria-label="Prism — drag to move, press space to pick a hat">
           <span class="pony__plate">PF·004</span>
+          <span class="pony__stamp" aria-hidden="true">INSPECTED</span>
           <span class="hat-slot" aria-hidden="true">✨</span>
           <img src="./assets/pony-prism.png" alt="Prism, a chestnut at golden hour" draggable="false" />
         </button>
         <button class="pony" data-name="Sable" data-plate="PF·005" data-hat="🏳️‍⚧️"
                 aria-label="Sable — drag to move, press space to pick a hat">
           <span class="pony__plate">PF·005</span>
+          <span class="pony__stamp" aria-hidden="true">INSPECTED</span>
           <span class="hat-slot" aria-hidden="true">🏳️‍⚧️</span>
           <img src="./assets/pony-sable.png" alt="Sable, a dappled grey in show ribbons" draggable="false" />
         </button>
         <button class="pony" data-name="Femme" data-plate="PF·006" data-hat="🥀"
                 aria-label="Femme — drag to move, press space to pick a hat">
           <span class="pony__plate">PF·006</span>
+          <span class="pony__stamp" aria-hidden="true">INSPECTED</span>
           <span class="hat-slot" aria-hidden="true">🥀</span>
           <img src="./assets/pony-femme.png" alt="Femme, a roan in red velvet light" draggable="false" />
         </button>
       </div>
+
+      <svg class="hayfield" id="hayfield" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"></svg>
+
+      <div class="inspector" id="inspector" aria-hidden="true">PF&middot;INSPECTOR</div>
+
+      <div class="journal" id="journal" aria-hidden="true">&mdash;</div>
 
       <div class="ring" id="ring" role="dialog" aria-label="Choose a hat" aria-hidden="true">
         <div class="ring__center">
