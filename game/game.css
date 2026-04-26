@@ -1,0 +1,396 @@
+/*
+  Ponyforge Dress-to-Match — game HUD styles.
+  Spec: docs/game/UI.md. Maps spec tokens to existing styles.css variables.
+    --ink-faint  -> var(--rule)
+    --ink-soft   -> var(--ink-3)
+    --oxblood    -> var(--accent)
+    --font-display -> var(--serif)
+    --font-mono    -> var(--mono)
+  Flat. No shadows, no gradients, no italics.
+*/
+
+:root {
+  --hud-pad: clamp(16px, 2.4vw, 28px);
+  --hud-top: clamp(20px, 3vw, 36px);
+  --oxblood: var(--accent);
+  --ink-faint: var(--rule);
+  --ink-soft: var(--ink-3);
+  --font-display: var(--serif);
+  --font-mono: var(--mono);
+}
+
+.font-mono { font-family: var(--mono); }
+
+/* ===== HUD root container =================================================== */
+.hud-root {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 30;
+}
+.hud-root > * { pointer-events: auto; }
+.hud-root > :not(.hud-mode) {
+  transition: opacity 280ms ease, transform 280ms ease;
+}
+.hud-root[data-mode="chill"] .hud-timer,
+.hud-root[data-mode="chill"] .hud-score,
+.hud-root[data-mode="chill"] .hud-target-wrap,
+.hud-root[data-mode="chill"] .hud-hearts {
+  opacity: 0;
+  pointer-events: none;
+}
+.hud-root[data-mode="chill"] .hud-timer { transform: translateY(-4px); }
+.hud-root[data-mode="chill"] .hud-score { transform: translateY(-6px); }
+.hud-root[data-mode="chill"] .hud-target-wrap { transform: translate(-50%, -8px); }
+.hud-root[data-mode="chill"] .hud-hearts { transform: translateY(-6px); }
+
+.hud-sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ===== Timer ================================================================ */
+.hud-timer {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--ink-faint);
+}
+.hud-timer__fill {
+  height: 100%;
+  background: var(--oxblood);
+  transform-origin: left center;
+  transform: scaleX(var(--t, 1));
+  transition: transform 100ms linear;
+}
+.hud-timer.is-critical .hud-timer__fill {
+  animation: hud-blink 0.5s steps(2, end) infinite;
+}
+@keyframes hud-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ===== Score island ========================================================= */
+.hud-score {
+  position: absolute;
+  top: var(--hud-top);
+  left: var(--hud-pad);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.hud-score__num {
+  font: 500 28px/1 var(--font-mono);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  display: inline-block;
+  transform: translateY(0);
+  transition: transform 180ms var(--ease-soft);
+}
+.hud-score__num.is-tick {
+  animation: hud-score-tick 200ms var(--ease-soft);
+}
+@keyframes hud-score-tick {
+  0%   { transform: translateY(0); }
+  40%  { transform: translateY(-2px); }
+  100% { transform: translateY(0); }
+}
+.hud-score__meta {
+  margin-top: 6px;
+  font: 11px/1 var(--font-mono);
+  color: var(--ink-soft);
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+}
+.hud-score__sep { margin: 0 6px; }
+.hud-score__round, .hud-score__best { display: inline; }
+
+.hud-combo {
+  margin-top: 8px;
+  font: 600 14px/1 var(--font-mono);
+  color: var(--oxblood);
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 160ms, transform 160ms;
+}
+.hud-combo[data-active="true"] {
+  opacity: 1;
+  transform: translateY(0);
+}
+.hud-combo.is-flash {
+  animation: hud-combo-flash 320ms var(--ease-soft);
+}
+@keyframes hud-combo-flash {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+/* ===== Hearts =============================================================== */
+.hud-hearts {
+  position: absolute;
+  top: var(--hud-top);
+  right: var(--hud-pad);
+  display: flex;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.shoe {
+  width: 22px;
+  height: 22px;
+  color: var(--ink);
+  transition: color 240ms, opacity 240ms;
+}
+.shoe.is-off {
+  color: var(--ink-faint);
+  opacity: 0.55;
+}
+.shoe.is-losing {
+  animation: hud-shoe-drop 360ms ease-out forwards;
+}
+.shoe__svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+@keyframes hud-shoe-drop {
+  0%   { transform: translateY(0)   rotate(0);     color: var(--oxblood); }
+  60%  { transform: translateY(2px) rotate(-8deg); color: var(--oxblood); }
+  100% { transform: translateY(0)   rotate(0);     color: var(--ink-faint); opacity: 0.55; }
+}
+
+/* ===== Target card ========================================================== */
+.hud-target-wrap {
+  position: absolute;
+  top: var(--hud-top);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 360px;
+}
+.hud-target {
+  min-width: 240px;
+  max-width: 360px;
+  padding: 12px 16px 14px;
+  background: var(--paper);
+  border: 1px solid var(--ink-faint);
+  border-radius: 2px;
+  text-align: center;
+}
+.hud-target-wrap.is-flash .hud-target {
+  animation: hud-target-flash 700ms ease-out;
+}
+@keyframes hud-target-flash {
+  0%   { background: var(--paper); }
+  20%  { background: var(--paper-2); }
+  100% { background: var(--paper); }
+}
+.hud-target__plate {
+  display: block;
+  font: 11px/1 var(--font-mono);
+  letter-spacing: 0.12em;
+  color: var(--ink-soft);
+  text-transform: lowercase;
+}
+.hud-target__plate--shared {
+  margin-bottom: 4px;
+}
+.hud-target__name {
+  font: 600 22px/1.1 var(--font-display);
+  color: var(--ink);
+  margin: 6px 0 10px;
+}
+.hud-target__chips {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  background: var(--paper-2);
+  border: 1px solid var(--ink-faint);
+  border-radius: 999px;
+  transition: border-color 180ms, color 180ms;
+}
+.chip.is-met {
+  border-color: var(--oxblood);
+}
+.chip.is-met .chip__label {
+  color: var(--ink);
+}
+.chip__emoji {
+  font-size: 14px;
+  line-height: 1;
+}
+.chip__label {
+  font: 11px/1 var(--font-mono);
+  color: var(--ink);
+  text-transform: lowercase;
+}
+
+/* ===== Mode toggle ========================================================== */
+.hud-mode {
+  position: absolute;
+  bottom: var(--hud-pad);
+  right: var(--hud-pad);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 8px 12px;
+  background: var(--oxblood);
+  color: var(--paper);
+  border: none;
+  border-radius: 999px;
+  font: 500 12px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: lowercase;
+  cursor: pointer;
+  min-height: 32px;
+}
+.hud-mode[data-mode="chill"] {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--ink-faint);
+}
+.hud-mode__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.hud-mode:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* ===== Feedback overlays (animations created by JS via element.animate) ===== */
+.pf-shake {
+  animation: pf-shake 220ms linear;
+}
+@keyframes pf-shake {
+  0%   { transform: translateX(0); }
+  20%  { transform: translateX(-6px); }
+  40%  { transform: translateX(5px); }
+  60%  { transform: translateX(-4px); }
+  80%  { transform: translateX(3px); }
+  100% { transform: translateX(0); }
+}
+
+/* ===== Game over overlay ==================================================== */
+.game-over {
+  position: fixed;
+  inset: 0;
+  background: rgba(243, 239, 230, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 320ms ease;
+  z-index: 50;
+  pointer-events: none;
+}
+.game-over[data-open="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+.game-over__panel {
+  text-align: center;
+  padding: 24px 32px;
+  max-width: 520px;
+}
+.game-over__plate {
+  font: 11px/1 var(--font-mono);
+  color: var(--ink-soft);
+  letter-spacing: 0.12em;
+  text-transform: lowercase;
+}
+.game-over__title {
+  font: 400 56px/1.05 var(--font-display);
+  color: var(--ink);
+  margin: 14px 0 6px;
+}
+.game-over__score {
+  font: 500 14px/1 var(--font-mono);
+  color: var(--ink);
+  margin-bottom: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.game-over__best-tag {
+  margin-left: 8px;
+  padding: 2px 8px;
+  background: var(--oxblood);
+  color: var(--paper);
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+}
+.game-over__actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+.btn {
+  padding: 10px 18px;
+  border-radius: 2px;
+  font: 500 13px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  cursor: pointer;
+  min-height: 44px;
+}
+.btn--primary {
+  background: var(--oxblood);
+  color: var(--paper);
+  border: none;
+}
+.btn--ghost {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--ink-faint);
+}
+.btn:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* ===== Responsive =========================================================== */
+@media (max-width: 720px) {
+  .hud-target { min-width: 0; width: min(86vw, 320px); }
+  .hud-score__num { font-size: 22px; }
+  .shoe { width: 18px; height: 18px; }
+}
+@media (max-width: 420px) {
+  .hud-target__plate { display: block; margin-bottom: 4px; }
+}
+
+/* ===== Reduced motion ======================================================= */
+@media (prefers-reduced-motion: reduce) {
+  .hud-root > *,
+  .game-over,
+  .hud-timer__fill,
+  .shoe,
+  .chip,
+  .hud-combo,
+  .hud-score__num {
+    transition: none !important;
+    animation: none !important;
+  }
+  .hud-timer.is-critical .hud-timer__fill { opacity: 0.7; }
+}
