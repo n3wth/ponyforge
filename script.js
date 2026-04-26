@@ -71,6 +71,7 @@ function initHats() {
       });
       hatButton.classList.add("selected");
       hatButton.setAttribute("aria-checked", "true");
+      if (window.PonyAudio) window.PonyAudio.hat();
     });
   }
 }
@@ -79,6 +80,7 @@ function initPonies(ponyList) {
   for (const pony of ponyList) {
     pony.addEventListener("dragstart", () => {
       draggedPonyId = pony.id;
+      if (window.PonyAudio) window.PonyAudio.drag();
     });
 
     pony.addEventListener("click", (event) => {
@@ -120,6 +122,7 @@ function initPastures() {
       event.preventDefault();
       pasture.classList.remove("drag-over");
       movePonyToPasture(pasture);
+      if (window.PonyAudio) window.PonyAudio.drop();
     });
   }
 }
@@ -136,6 +139,7 @@ function initStableDrop() {
     pony.style.removeProperty("left");
     pony.style.removeProperty("top");
     draggedPonyId = null;
+    if (window.PonyAudio) window.PonyAudio.drop();
   });
 }
 
@@ -182,7 +186,7 @@ function screamSync() {
   screamers.forEach((pony, index) => {
     setTimeout(() => {
       shudder(pony);
-      playBizarreNoise(0.7 + index * 0.18);
+      if (window.PonyAudio) window.PonyAudio.scream(0.8 + index * 0.1);
     }, index * 90);
   });
 }
@@ -229,6 +233,7 @@ function toggleWhisper(button) {
   if (!whisperOn) {
     whisperEl.classList.remove("visible");
   }
+  if (whisperOn && window.PonyAudio) window.PonyAudio.whisper();
 }
 
 function initWhisper() {
@@ -300,83 +305,15 @@ function flashToolbar(message) {
   setTimeout(() => ghost.remove(), 1600);
 }
 
-let audioContext;
-
-function getAudioContext() {
-  if (!audioContext) audioContext = new AudioContext();
-  return audioContext;
-}
-
+// Audio is implemented in audio.js as window.PonyAudio. These shims keep the
+// existing call sites working and route bizarre-noise calls based on intensity.
 function playBizarreNoise(intensity = 1) {
-  const context = getAudioContext();
-  const now = context.currentTime;
-  const duration = (0.85 + Math.random() * 0.6) * intensity;
-
-  const base = context.createOscillator();
-  base.type = ["square", "sawtooth", "triangle"][Math.floor(Math.random() * 3)];
-  base.frequency.setValueAtTime(140 + Math.random() * 220, now);
-  base.frequency.exponentialRampToValueAtTime(40 + Math.random() * 80, now + duration);
-
-  const wobble = context.createOscillator();
-  wobble.type = "sine";
-  wobble.frequency.value = 6 + Math.random() * 13;
-
-  const wobbleGain = context.createGain();
-  wobbleGain.gain.value = 40 + Math.random() * 90;
-  wobble.connect(wobbleGain);
-  wobbleGain.connect(base.frequency);
-
-  const filter = context.createBiquadFilter();
-  filter.type = "bandpass";
-  filter.frequency.value = 400 + Math.random() * 1600;
-  filter.Q.value = 1 + Math.random() * 7;
-
-  const gain = context.createGain();
-  gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(0.5 * intensity, now + 0.04);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-
-  base.connect(filter);
-  filter.connect(gain);
-  gain.connect(context.destination);
-
-  base.start(now);
-  wobble.start(now);
-  base.stop(now + duration);
-  wobble.stop(now + duration);
-
-  if (Math.random() > 0.4) {
-    const chirp = context.createOscillator();
-    const chirpGain = context.createGain();
-    chirp.type = "triangle";
-    chirp.frequency.setValueAtTime(900 + Math.random() * 700, now + 0.1);
-    chirp.frequency.exponentialRampToValueAtTime(120 + Math.random() * 80, now + 0.28);
-    chirpGain.gain.setValueAtTime(0.0001, now + 0.08);
-    chirpGain.gain.exponentialRampToValueAtTime(0.2, now + 0.12);
-    chirpGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.31);
-    chirp.connect(chirpGain);
-    chirpGain.connect(context.destination);
-    chirp.start(now + 0.08);
-    chirp.stop(now + 0.31);
-  }
+  if (!window.PonyAudio) return;
+  if (intensity >= 1.3) window.PonyAudio.spawn();
+  else if (intensity >= 1.1) window.PonyAudio.randomize();
+  else window.PonyAudio.ponyClick();
 }
 
 function playPrideFanfare() {
-  const context = getAudioContext();
-  const now = context.currentTime;
-  const notes = [262, 330, 392, 523, 659, 784];
-  notes.forEach((freq, i) => {
-    const osc = context.createOscillator();
-    const gain = context.createGain();
-    osc.type = "triangle";
-    osc.frequency.value = freq;
-    const start = now + i * 0.08;
-    gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(0.18, start + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.42);
-    osc.connect(gain);
-    gain.connect(context.destination);
-    osc.start(start);
-    osc.stop(start + 0.45);
-  });
+  if (window.PonyAudio) window.PonyAudio.parade();
 }
