@@ -28,7 +28,7 @@
   --ease-land:  cubic-bezier(.16, .84, .44, 1);
   --ease-over:  cubic-bezier(.34, 1.56, .64, 1);
 
-  --pony-w: clamp(120px, 13vw, 168px);
+  --pony-w: clamp(180px, 20vw, 280px);
 }
 
 * { box-sizing: border-box; }
