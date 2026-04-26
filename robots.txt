@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://ponyforge.com/sitemap.xml
