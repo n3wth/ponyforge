@@ -300,7 +300,7 @@
 
   // ---------------------------------------------------------- AUDIO
 
-  let actx = null, masterGain = null, audioReady = false, muted = false
+  let actx = null, masterGain = null, audioReady = false, muted = true
 
   function ensureAudio() {
     if (audioReady || muted || reduceMotion) return
@@ -312,7 +312,12 @@
       masterGain.gain.value = 0.15
       masterGain.connect(actx.destination)
       audioReady = true
+      buildSoundscape()
     } catch (_) {}
+    // iOS resume on first gesture
+    if (actx && actx.state === 'suspended') {
+      actx.resume().catch(() => {})
+    }
   }
 
   function blip({ freq = 440, type = 'sine', dur = 0.08, gain = 1, attack = 0.005, release = 0.06, slide = 0 }) {
@@ -359,6 +364,287 @@
     hatLand() { noiseBurst({ dur: 0.12, gain: 0.45, lpf: 2400 }) },
   }
 
+  // ---------------------------------------------------------- SOUNDSCAPE
+  // Continuous pad + per-horse voice + hat-land arpeggio + cluster swell.
+
+  const HORSE_VOICE = {
+    iris:   220,   // A3
+    vesper: 175,   // F3
+    onyx:   147,   // D3
+    prism:  262,   // C4
+    sable:  196,   // G3
+    femme:  330,   // E4
+  }
+
+  // Pad recipes per weather state. Each recipe gives ratios applied to a base
+  // root frequency (we use a low root ~ 110Hz). Intervals favor maj7/b9/tritone
+  // for a slightly-off, paper-museum feel — not warm meditation fifths.
+  // ratios: list of frequency ratios (relative to root)
+  // detune: cents of slow wandering detune (0 = none)
+  // cutoff: lowpass cutoff in Hz
+  // q:      filter Q
+  // lfoHz:  filter LFO rate
+  // lfoAmt: filter cutoff modulation depth in Hz
+  // gain:   pad master gain (≤ 0.05)
+  // noise:  optional pink-noise layer gain (0 = off)
+  const PAD_RECIPES = {
+    clear:    { root: 110, ratios: [1, 1.5, 2.25],          detune: 0,  cutoff: 900,  q: 2,   lfoHz: 0.05, lfoAmt: 280, gain: 0.040, noise: 0 },
+    breezy:   { root: 110, ratios: [1, 1.5, 2.25],          detune: 15, cutoff: 1100, q: 2,   lfoHz: 0.07, lfoAmt: 360, gain: 0.040, noise: 0 },
+    overcast: { root: 110, ratios: [1, 1.1892, 1.5],        detune: 0,  cutoff: 520,  q: 3,   lfoHz: 0.04, lfoAmt: 160, gain: 0.038, noise: 0 },
+    drizzle:  { root: 110, ratios: [1, 1.1892, 1.5],        detune: 6,  cutoff: 480,  q: 3,   lfoHz: 0.04, lfoAmt: 140, gain: 0.036, noise: 0.012 },
+    fog:      { root: 110, ratios: [1, 1.8877],             detune: 0,  cutoff: 320,  q: 4,   lfoHz: 0.03, lfoAmt: 80,  gain: 0.030, noise: 0 },
+    dusk:     { root: 98,  ratios: [1, 1.5, 2.25],          detune: 0,  cutoff: 760,  q: 2,   lfoHz: 0.05, lfoAmt: 240, gain: 0.040, noise: 0 },
+    aurora:   { root: 110, ratios: [1, 1.5, 2.25, 1.4142],  detune: 8,  cutoff: 1400, q: 2.5, lfoHz: 0.06, lfoAmt: 500, gain: 0.046, noise: 0 },
+  }
+
+  // Pad chain (built once on first ensureAudio).
+  // Up to 4 voices to cover aurora's tritone addition; fewer voices have gain 0.
+  const PAD_VOICE_COUNT = 4
+  const sound = {
+    built: false,
+    padOut: null,        // pad master gain
+    padBase: 0,          // base gain for active recipe
+    padBoost: 0,         // current cluster boost (added to base)
+    voices: [],          // [{osc, oscDetune, gain, ratio, freq}]
+    filter: null,
+    lfo: null, lfoGain: null,
+    noiseGain: null, noiseSrc: null,
+    voicePool: [],       // pluck pool
+    voicePoolIx: 0,
+    detuneLfo: null, detuneLfoGain: null,
+  }
+
+  function makePinkNoiseBuffer(seconds) {
+    const len = Math.floor(actx.sampleRate * seconds)
+    const buf = actx.createBuffer(1, len, actx.sampleRate)
+    const d = buf.getChannelData(0)
+    let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0
+    for (let i = 0; i < len; i++) {
+      const w = Math.random() * 2 - 1
+      b0 = 0.99886*b0 + w*0.0555179
+      b1 = 0.99332*b1 + w*0.0750759
+      b2 = 0.96900*b2 + w*0.1538520
+      b3 = 0.86650*b3 + w*0.3104856
+      b4 = 0.55000*b4 + w*0.5329522
+      b5 = -0.7616*b5 - w*0.0168980
+      d[i] = (b0+b1+b2+b3+b4+b5+b6+w*0.5362) * 0.11
+      b6 = w * 0.115926
+    }
+    return buf
+  }
+
+  function buildSoundscape() {
+    if (sound.built || !audioReady) return
+    sound.built = true
+    const t = actx.currentTime
+
+    // Pad master gain (sits under everything).
+    sound.padOut = actx.createGain()
+    sound.padOut.gain.value = 0
+    sound.padOut.connect(masterGain)
+
+    // Lowpass with LFO.
+    sound.filter = actx.createBiquadFilter()
+    sound.filter.type = 'lowpass'
+    sound.filter.frequency.value = 800
+    sound.filter.Q.value = 2
+    sound.filter.connect(sound.padOut)
+
+    sound.lfo = actx.createOscillator()
+    sound.lfo.frequency.value = 0.05
+    sound.lfoGain = actx.createGain()
+    sound.lfoGain.gain.value = 240
+    sound.lfo.connect(sound.lfoGain).connect(sound.filter.frequency)
+    sound.lfo.start(t)
+
+    // Slow detune wander LFO (for breezy etc).
+    sound.detuneLfo = actx.createOscillator()
+    sound.detuneLfo.frequency.value = 1 / 8 // 8s period
+    sound.detuneLfoGain = actx.createGain()
+    sound.detuneLfoGain.gain.value = 0
+    sound.detuneLfo.connect(sound.detuneLfoGain)
+    sound.detuneLfo.start(t)
+
+    // Pad voices: alternate sine/triangle, slight inter-voice detune for color.
+    for (let i = 0; i < PAD_VOICE_COUNT; i++) {
+      const o = actx.createOscillator()
+      o.type = (i % 2 === 0) ? 'sine' : 'triangle'
+      o.frequency.value = 110
+      o.detune.value = (i - 1.5) * 4 // -6, -2, +2, +6 cents
+      // Wire wandering detune LFO into each oscillator's detune param.
+      sound.detuneLfoGain.connect(o.detune)
+      const g = actx.createGain()
+      g.gain.value = 0
+      o.connect(g).connect(sound.filter)
+      o.start(t)
+      sound.voices.push({ osc: o, gain: g, ratio: 0, freq: 110 })
+    }
+
+    // Pink noise layer (for drizzle).
+    sound.noiseGain = actx.createGain()
+    sound.noiseGain.gain.value = 0
+    const nf = actx.createBiquadFilter()
+    nf.type = 'bandpass'
+    nf.frequency.value = 1200
+    nf.Q.value = 0.8
+    sound.noiseGain.connect(nf).connect(sound.padOut)
+    const nbuf = makePinkNoiseBuffer(4)
+    sound.noiseSrc = actx.createBufferSource()
+    sound.noiseSrc.buffer = nbuf
+    sound.noiseSrc.loop = true
+    sound.noiseSrc.connect(sound.noiseGain)
+    sound.noiseSrc.start(t)
+
+    // Voice pool for plucks (3 reusable osc+gain pairs).
+    for (let i = 0; i < 3; i++) {
+      const o = actx.createOscillator()
+      o.type = 'sine'
+      o.frequency.value = 220
+      const g = actx.createGain()
+      g.gain.value = 0
+      o.connect(g).connect(masterGain)
+      o.start(t)
+      sound.voicePool.push({ osc: o, gain: g })
+    }
+
+    // Apply current weather (if known) immediately.
+    applyPadForWeather(currentPadKey(), 0.5)
+  }
+
+  function currentPadKey() {
+    if (!weather) return 'clear'
+    return weather.state in PAD_RECIPES ? weather.state : 'clear'
+  }
+
+  function applyPadForWeather(key, fadeSec) {
+    if (!sound.built) return
+    const recipe = PAD_RECIPES[key] || PAD_RECIPES.clear
+    const t = actx.currentTime
+    const fade = Math.max(0.05, fadeSec || 4)
+
+    // Night fold-in: drop root an octave (composes with weather).
+    const isNight = paddock.classList.contains('is-night')
+    const root = recipe.root * (isNight ? 0.5 : 1)
+
+    // Crossfade voices to new ratios.
+    for (let i = 0; i < sound.voices.length; i++) {
+      const v = sound.voices[i]
+      const ratio = recipe.ratios[i] || 0
+      v.ratio = ratio
+      if (ratio > 0) {
+        const f = root * ratio
+        v.freq = f
+        v.osc.frequency.cancelScheduledValues(t)
+        v.osc.frequency.setTargetAtTime(f, t, fade * 0.5)
+        // Per-voice gain — distribute so total <= recipe.gain.
+        const target = (recipe.gain / Math.max(1, recipe.ratios.length)) * 1.0
+        v.gain.gain.cancelScheduledValues(t)
+        v.gain.gain.setTargetAtTime(target, t, fade * 0.5)
+      } else {
+        v.gain.gain.cancelScheduledValues(t)
+        v.gain.gain.setTargetAtTime(0, t, fade * 0.5)
+      }
+    }
+
+    // Filter / LFO.
+    sound.filter.frequency.cancelScheduledValues(t)
+    sound.filter.frequency.setTargetAtTime(recipe.cutoff, t, fade * 0.5)
+    sound.filter.Q.setTargetAtTime(recipe.q, t, fade * 0.5)
+    sound.lfo.frequency.setTargetAtTime(recipe.lfoHz, t, fade * 0.5)
+    sound.lfoGain.gain.setTargetAtTime(recipe.lfoAmt, t, fade * 0.5)
+
+    // Detune wander.
+    sound.detuneLfoGain.gain.cancelScheduledValues(t)
+    sound.detuneLfoGain.gain.setTargetAtTime(recipe.detune || 0, t, fade * 0.5)
+
+    // Noise layer.
+    sound.noiseGain.gain.cancelScheduledValues(t)
+    sound.noiseGain.gain.setTargetAtTime(recipe.noise || 0, t, fade * 0.5)
+
+    // Pad master.
+    sound.padBase = recipe.gain
+    const padTarget = muted ? 0 : (sound.padBase + sound.padBoost)
+    sound.padOut.gain.cancelScheduledValues(t)
+    // Aurora swells slowly over its 90s window.
+    const padFade = (key === 'aurora') ? 18 : fade
+    sound.padOut.gain.setTargetAtTime(padTarget, t, padFade * 0.5)
+  }
+
+  function setPadMute(isMuted) {
+    if (!sound.built) return
+    const t = actx.currentTime
+    const target = isMuted ? 0 : (sound.padBase + sound.padBoost)
+    sound.padOut.gain.cancelScheduledValues(t)
+    sound.padOut.gain.setTargetAtTime(target, t, isMuted ? 0.15 : 0.6)
+  }
+
+  function playHorseVoice(h, octaveUp) {
+    if (!audioReady || muted || !sound.built) return
+    const base = HORSE_VOICE[h.kind] || 220
+    const freq = octaveUp ? base * 2 : base
+    const slot = sound.voicePool[sound.voicePoolIx]
+    sound.voicePoolIx = (sound.voicePoolIx + 1) % sound.voicePool.length
+    const t = actx.currentTime
+    slot.osc.frequency.cancelScheduledValues(t)
+    slot.osc.frequency.setValueAtTime(freq, t)
+    slot.gain.gain.cancelScheduledValues(t)
+    slot.gain.gain.setValueAtTime(0, t)
+    slot.gain.gain.linearRampToValueAtTime(0.08, t + 0.008)
+    slot.gain.gain.setValueAtTime(0.08, t + 0.068)
+    slot.gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.288)
+  }
+
+  function playHatArpeggio(h) {
+    if (!audioReady || muted || !sound.built) return
+    const base = HORSE_VOICE[h.kind] || 220
+    // Root, maj3, 5th — same pluck envelope, 60ms apart, lower gain.
+    const ratios = [1, 1.2599, 1.4983]
+    const t0 = actx.currentTime
+    for (let i = 0; i < ratios.length; i++) {
+      const slot = sound.voicePool[sound.voicePoolIx]
+      sound.voicePoolIx = (sound.voicePoolIx + 1) % sound.voicePool.length
+      const t = t0 + i * 0.060
+      const f = base * ratios[i]
+      slot.osc.frequency.cancelScheduledValues(t)
+      slot.osc.frequency.setValueAtTime(f, t)
+      slot.gain.gain.cancelScheduledValues(t)
+      slot.gain.gain.setValueAtTime(0, t)
+      slot.gain.gain.linearRampToValueAtTime(0.05, t + 0.008)
+      slot.gain.gain.setValueAtTime(0.05, t + 0.060)
+      slot.gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.260)
+    }
+  }
+
+  // Cluster reactivity: when 2+ horses are within 100px, pad rises by ~0.01.
+  let _clusterBoostTarget = 0
+  let _clusterAccum = 0
+  function updateClusterBoost(dt) {
+    if (!sound.built) return
+    // Sample at ~5Hz to keep it cheap; horses are few (<20).
+    _clusterAccum += dt
+    if (_clusterAccum < 0.2) return
+    _clusterAccum = 0
+    let clustered = false
+    const n = horses.length
+    outer: for (let i = 0; i < n; i++) {
+      const a = horses[i]
+      for (let j = i + 1; j < n; j++) {
+        const b = horses[j]
+        const dx = a._x - b._x, dy = a._y - b._y
+        if (dx*dx + dy*dy < 100*100) { clustered = true; break outer }
+      }
+    }
+    _clusterBoostTarget = clustered ? 0.01 : 0
+    // Smooth toward target (~2s).
+    const k = 0.1
+    sound.padBoost += (_clusterBoostTarget - sound.padBoost) * k
+    if (Math.abs(sound.padBoost) < 0.0005) sound.padBoost = _clusterBoostTarget
+    if (!muted) {
+      const t = actx.currentTime
+      sound.padOut.gain.setTargetAtTime(sound.padBase + sound.padBoost, t, 0.6)
+    }
+  }
+
   // ---------------------------------------------------------- PHYSICS
 
   const FRICTION       = 3.2
@@ -384,6 +670,7 @@
     updateShake(t)
     updateBreath(t)
     updateGaze()
+    updateClusterBoost(dt)
 
     requestAnimationFrame(tick)
   }
@@ -610,6 +897,7 @@
         void stack.offsetWidth
         stack.classList.add('is-landing')
         sfx.hatLand()
+        playHatArpeggio(h)
         h._sy = 0.94; h._sx = 1.05
         persist()
       }
@@ -764,7 +1052,8 @@
 
       velSamples = []
       pushVelSample(e.clientX, e.clientY)
-      sfx.pickup()
+      if (audioReady && sound.built) playHorseVoice(h, false)
+      else sfx.pickup()
 
       try { el.setPointerCapture(e.pointerId) } catch (_) {}
       e.preventDefault()
@@ -845,7 +1134,8 @@
           const amt = Math.min(0.18, 0.06 + speed * 0.00012)
           h._sx = 1 + amt; h._sy = 1 - amt * 0.6
         }
-        sfx.drop()
+        if (audioReady && sound.built) playHorseVoice(h, true)
+        else sfx.drop()
         sortDepth()
         persist()
         dragging = null
@@ -1122,10 +1412,15 @@
 
   // ---------------------------------------------------------- TIME OF DAY
 
+  let _wasNight = null
   function tickClock() {
     const h = new Date().getHours()
     const isNight = (h >= 23 || h < 5)
     paddock.classList.toggle('is-night', isNight)
+    if (_wasNight !== null && _wasNight !== isNight && audioReady && sound.built) {
+      applyPadForWeather(currentPadKey(), 6)
+    }
+    _wasNight = isNight
   }
 
   // ---------------------------------------------------------- WEATHER
@@ -1220,6 +1515,9 @@
     weatherChip.classList.toggle('is-aurora', weather.state === 'aurora')
     const txt = weatherChip.querySelector('.weather-chip__txt')
     if (txt) txt.textContent = chipText()
+
+    // Audio leads the visual transition slightly (4s crossfade).
+    if (audioReady && sound.built) applyPadForWeather(currentPadKey(), 4)
   }
 
   function pickTransition(from) {
@@ -1372,8 +1670,13 @@
   muteBtn.addEventListener('click', () => {
     muted = !muted
     muteBtn.setAttribute('aria-pressed', String(muted))
-    if (!muted) ensureAudio()
+    if (!muted) {
+      ensureAudio()
+      // On unmute, retune pad to current weather with a quick fade-in.
+      if (audioReady && sound.built) applyPadForWeather(currentPadKey(), 1.5)
+    }
     if (masterGain) masterGain.gain.value = muted ? 0 : 0.15
+    setPadMute(muted)
   })
 
   // ---------------------------------------------------------- SHOW (G)
