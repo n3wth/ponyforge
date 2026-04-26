@@ -73,6 +73,10 @@
           <span class="tool-emoji" aria-hidden="true">💬</span>
           Whisper Mode
         </button>
+        <button class="tool" data-action="print">
+          <span class="tool-emoji" aria-hidden="true">📄</span>
+          Print Field Guide
+        </button>
       </section>
 
       <section class="controls" aria-label="Fashion rail">
@@ -103,6 +107,37 @@
           <h3>Moonlight Trawling Field</h3>
           <div class="pasture-floor"></div>
         </article>
+      </section>
+
+      <section class="faq" aria-label="Frequently asked questions">
+        <p class="faq-eyebrow">02 — Field Notes</p>
+        <h2>FAQ</h2>
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary>What is PONYFORGE?<span class="faq-toggle" aria-hidden="true">[+]</span></summary>
+            <p>A small chaotic pony maker. You drag, dress, and unleash. It is a website, a toy, a feeling, and a low-grade haunting. We refuse to pick one.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Who are these ponies?<span class="faq-toggle" aria-hidden="true">[+]</span></summary>
+            <p>Six full-time ponies and however many you spawn. Each one has pronouns, a snack of choice, and at least one unresolved feeling. Long-press to read their lore.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Why are they slightly wrong?<span class="faq-toggle" aria-hidden="true">[+]</span></summary>
+            <p>Because correctness is for tax software. The wrongness is the affection. We let the eyes catch a little too much light and call it a feature.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Can I keep a pony?<span class="faq-toggle" aria-hidden="true">[+]</span></summary>
+            <p>Open a lore card and hit Share. You'll get a deep link to that exact pony. Bookmark it. Send it to a friend. The pasture will remember.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Is this art or a toy?<span class="faq-toggle" aria-hidden="true">[+]</span></summary>
+            <p>Yes. It is also a love letter, a rehearsal, and a mild prank. Print the field guide if you need something to hold.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Who made this?<span class="faq-toggle" aria-hidden="true">[+]</span></summary>
+            <p>A small herd of queer humans and one very patient computer. Built in vanilla HTML, CSS, and JS — no framework, no funnel, no growth team.</p>
+          </details>
+        </div>
       </section>
 
       <section class="stable" aria-label="Pony stable">
@@ -166,7 +201,10 @@
       </section>
     </main>
 
+    <section class="field-guide" id="field-guide" aria-hidden="true"></section>
+
     <div class="whisper" id="whisper" aria-hidden="true"></div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="./audio.js"></script>
     <script src="./script.js"></script>
