@@ -1,26 +1,19 @@
 /*
-  Ponyforge — game-ux pass 2026.
+  Ponyforge — integrated build.
 
-  Designer note: this rev redesigns the INTERACTION MODEL only — type
-  system (Fraunces + JetBrains Mono), oxblood-on-paper palette, and
-  ink-on-ledger feel are kept verbatim from the catalogue rev. What
-  changed: the page IS the paddock (full viewport, fenced by a single
-  inset rule). All six horses live in the world from page-load at a
-  balanced semi-random spread. The bottom hat-strip is gone; hats now
-  summon as a contextual radial ring around the tapped horse, with
-  number-row keyboard shortcuts (1-9, 0, -, =) so the tool follows the
-  cursor instead of forcing a reach. The studbook list is gone — recall
-  is a small pill in the corner. The title became a stamp inside the
-  world. Drag uses pointer events (mouse + touch share one path),
-  is rAF-driven on transforms only, and lands with a cubic-bezier
-  overshoot; depth and cast-shadow scale by y-position so back-row
-  horses feel further away.
+  The page is the paddock: a single fenced viewport, full bleed, where six
+  horses live and breathe. JUICE physics give each horse weight; SANDBOX
+  layers stacked hats, editable names, clones; EMERGENT hides a few
+  rewards behind exploration; SHOW turns the page into a 14-second
+  procession on G. Type system (Fraunces + JetBrains Mono) and oxblood-
+  on-paper palette are unchanged.
 */
 
 :root {
   --paper:    #f3efe6;
   --paper-2:  #ebe6da;
   --paper-3:  #e2dccc;
+  --paper-night: #e8e3d6;
   --rule:     #cbc4b1;
   --ink:      #14130f;
   --ink-2:    #4a463d;
@@ -73,6 +66,9 @@ body {
   inset: 0;
   width: 100vw;
   height: 100dvh;
+  --shake-x: 0px;
+  --shake-y: 0px;
+  transform: translate3d(var(--shake-x), var(--shake-y), 0);
   background:
     repeating-linear-gradient(
       to bottom,
@@ -88,13 +84,12 @@ body {
   box-shadow: inset 0 0 0 1px var(--ink);
   user-select: none;
   touch-action: none;
+  transition: background-color 1200ms var(--ease-soft);
 }
+.paddock.is-holding { background-color: var(--paper-2); }
+.paddock.is-night { background-color: var(--paper-night); }
 
-.paddock.is-holding {
-  background-color: var(--paper-2);
-}
-
-/* ============================================================ STAMP (title) */
+/* ============================================================ STAMP */
 
 .stamp {
   position: absolute;
@@ -139,7 +134,7 @@ body {
 .compass--e { right: 0.85rem; top: 50%; transform: translateY(-50%) rotate(90deg); transform-origin: center; }
 .compass--w { left: 0.85rem;  top: 50%; transform: translateY(-50%) rotate(-90deg); transform-origin: center; }
 
-/* ============================================================ FOLD CAPTION */
+/* ============================================================ FOLD */
 
 .fold {
   position: absolute;
@@ -181,6 +176,42 @@ body {
 .recall:hover { background: var(--ink); color: var(--paper); }
 .recall:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+/* ============================================================ AFFORDANCE (G) */
+
+.affordance {
+  position: absolute;
+  top: clamp(1rem, 2.4vw, 1.75rem);
+  right: clamp(7rem, 12vw, 9rem);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  pointer-events: none;
+  z-index: 5;
+  padding: 0.5rem 0;
+  transition: opacity 380ms var(--ease-soft);
+}
+.affordance__key {
+  display: inline-grid;
+  place-items: center;
+  width: 18px; height: 18px;
+  border: 1px solid var(--ink-3);
+  color: var(--ink);
+  font-size: 10px;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+.affordance__sep { color: var(--accent); }
+
+@media (max-width: 720px) {
+  .affordance { right: clamp(6rem, 18vw, 7.5rem); font-size: 9px; letter-spacing: 0.14em; }
+}
+
 /* ============================================================ HINT */
 
 .hint {
@@ -209,6 +240,60 @@ body {
   .fold { display: none; }
 }
 
+/* ============================================================ MUTE */
+
+.mute {
+  position: absolute;
+  bottom: clamp(0.85rem, 2vw, 1.4rem);
+  left: clamp(1rem, 2.4vw, 1.75rem);
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  z-index: 6;
+  transition: background 200ms var(--ease-soft), color 200ms var(--ease-soft);
+}
+.mute:hover { background: var(--ink); color: var(--paper); }
+.mute:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mute .mute__off { display: none; }
+.mute[aria-pressed="true"] .mute__on  { display: none; }
+.mute[aria-pressed="true"] .mute__off { display: inline; }
+
+@media (max-width: 560px) {
+  .mute { font-size: 9px; padding: 0.4rem 0.6rem; letter-spacing: 0.14em; }
+}
+
+/* ============================================================ TOAST */
+
+.toast {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(0.96);
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 0.7rem 1.1rem;
+  z-index: 2000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms var(--ease-soft), transform 240ms var(--ease-over);
+  white-space: nowrap;
+}
+.toast.is-on {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
 /* ============================================================ HERD */
 
 .herd {
@@ -232,10 +317,15 @@ body {
   --y: 0px;
   --r: 0deg;
   --lift: 0;
+  --sx: 1;
+  --sy: 1;
+  --breath: 1;
+  --gaze-x: 0deg;
   --base-scale: calc(1 - var(--depth) * 0.20);
   transform:
     translate3d(var(--x), var(--y), 0)
-    scale(calc(var(--base-scale) + var(--lift) * 0.05))
+    scale(calc((var(--base-scale) + var(--lift) * 0.05) * var(--sx) * var(--breath)),
+          calc((var(--base-scale) + var(--lift) * 0.05) * var(--sy) * var(--breath)))
     rotate(var(--r));
   transform-origin: 50% 100%;
   filter:
@@ -285,9 +375,7 @@ body {
   filter: saturate(1) brightness(1) drop-shadow(0 18px 22px rgba(20,19,15,0.28));
 }
 
-.pony.is-landing {
-  animation: pony-land 460ms var(--ease-over) both;
-}
+.pony.is-landing { animation: pony-land 460ms var(--ease-over) both; }
 @keyframes pony-land {
   0%   { transform: translate3d(var(--x), calc(var(--y) - 10px), 0) scale(calc(var(--base-scale) * 1.05)) rotate(var(--r)); }
   60%  { transform: translate3d(var(--x), calc(var(--y) + 2px),  0) scale(calc(var(--base-scale) * 0.98)) rotate(0deg); }
@@ -303,6 +391,10 @@ body {
   pointer-events: none;
   user-select: none;
   -webkit-user-drag: none;
+  --face-x: 1;
+  transform: scaleX(var(--face-x)) rotate(var(--gaze-x));
+  transform-origin: 50% 60%;
+  transition: transform 320ms var(--ease-soft);
 }
 
 .pony__plate {
@@ -318,32 +410,98 @@ body {
   pointer-events: none;
 }
 
-.hat-slot {
+/* ----- stacked hats (sandbox) ----- */
+.hat-stack {
   position: absolute;
-  top: 6%;
+  top: 4px;
   left: 50%;
-  transform: translate(-50%, 0);
-  font-size: clamp(1.6rem, 3.2vw, 2.2rem);
-  line-height: 1;
+  transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
   pointer-events: none;
   z-index: 2;
   filter: drop-shadow(0 1px 0 rgba(0,0,0,0.35));
+  line-height: 1;
 }
+.hat-stack .hat {
+  font-size: clamp(1.4rem, 2.8vw, 1.9rem);
+  display: block;
+  margin-top: -10px;
+}
+.hat-stack .hat:last-child { margin-top: 0; }
 
-.hat-slot.is-falling {
-  animation: hat-fall 320ms var(--ease-fall) forwards;
-}
-.hat-slot.is-landing {
+.hat-stack.is-landing .hat:first-child {
   animation: hat-land 380ms var(--ease-land) both;
 }
-@keyframes hat-fall {
-  0%   { transform: translate(-50%, 0)    rotate(0deg);   opacity: 1; }
-  100% { transform: translate(-50%, 22px) rotate(-14deg); opacity: 0; }
+.hat-stack.is-shaking .hat:first-child {
+  animation: hat-shake 520ms var(--ease-soft) both;
 }
 @keyframes hat-land {
-  0%   { transform: translate(-50%, -28px) rotate(8deg); opacity: 0; }
-  60%  { transform: translate(-50%, 2px)   rotate(-2deg); opacity: 1; }
-  100% { transform: translate(-50%, 0)     rotate(0deg);  opacity: 1; }
+  0%   { transform: translateY(-28px) rotate(8deg); opacity: 0; }
+  60%  { transform: translateY(2px)   rotate(-2deg); opacity: 1; }
+  100% { transform: translateY(0)     rotate(0deg);  opacity: 1; }
+}
+@keyframes hat-shake {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  20%      { transform: translate(-6px, 0) rotate(-8deg); }
+  60%      { transform: translate(6px, 0)  rotate(8deg); }
+}
+
+/* editable name caption (sandbox) */
+.pony__name {
+  position: absolute;
+  left: 50%;
+  bottom: -22px;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--paper);
+  border-bottom: 1px solid var(--ink);
+  padding: 0.1rem 0.4rem 0.05rem;
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: text;
+  outline: none;
+  min-width: 2rem;
+  text-align: center;
+  z-index: 4;
+}
+.pony__name:focus {
+  background: var(--paper-3);
+  border-bottom-color: var(--accent);
+}
+
+/* private (seen) note (emergent) */
+.pony__note {
+  position: absolute;
+  bottom: -38px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 800ms var(--ease-soft);
+  z-index: 4;
+}
+.pony.is-seen .pony__note { opacity: 1; }
+.pony__note .nt { color: var(--accent); }
+
+/* head dip (PONY combo, kiss-on-Vesper, etc.) */
+.pony.is-bowing img {
+  animation: pony-bow 1100ms var(--ease-soft) both;
+}
+@keyframes pony-bow {
+  0%, 100% { transform: scaleX(var(--face-x)) translateY(0); }
+  40%, 60% { transform: scaleX(var(--face-x)) translateY(6px); }
 }
 
 /* ============================================================ HAT RING */
@@ -389,7 +547,6 @@ body {
 .ring__caption {
   font-family: var(--serif);
   font-size: 13px;
-  font-style: normal;
   color: var(--ink);
   letter-spacing: 0.01em;
 }
@@ -429,13 +586,8 @@ body {
     background 160ms var(--ease-soft),
     color 160ms var(--ease-soft);
 }
-.ring.is-open .ring__hat {
-  opacity: 1;
-}
-.ring__hat .g {
-  font-size: 22px;
-  line-height: 1;
-}
+.ring.is-open .ring__hat { opacity: 1; }
+.ring__hat .g { font-size: 22px; line-height: 1; }
 .ring__hat .k {
   position: absolute;
   bottom: 2px; right: 4px;
@@ -444,24 +596,223 @@ body {
   color: var(--ink-3);
   font-variant-numeric: tabular-nums;
 }
-.ring__hat:hover {
-  background: var(--ink);
-  color: var(--paper);
-}
+.ring__hat:hover { background: var(--ink); color: var(--paper); }
 .ring__hat:hover .k { color: var(--paper); }
-.ring__hat:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-.ring__hat.is-active {
-  background: var(--accent);
-  color: var(--paper);
-}
+.ring__hat:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ring__hat.is-active { background: var(--accent); color: var(--paper); }
 .ring__hat.is-active .k { color: var(--paper); }
 
 @media (max-width: 720px) {
   .ring__hat { width: 44px; height: 44px; margin: -22px 0 0 -22px; }
   .ring__hat .g { font-size: 18px; }
+}
+
+/* ============================================================ HAT PROJECTILE */
+
+.hat-fly {
+  position: fixed;
+  left: 0; top: 0;
+  font-size: 28px;
+  line-height: 1;
+  pointer-events: none;
+  z-index: 1500;
+  will-change: transform;
+  filter: drop-shadow(0 1px 0 rgba(0,0,0,0.35));
+}
+
+/* ============================================================ EMERGENT FX */
+
+/* ribbon (crown + Sable) */
+.ribbon {
+  position: fixed;
+  width: 4px;
+  height: 38px;
+  background: linear-gradient(to bottom, #c9a13a, #8a6c1c);
+  pointer-events: none;
+  z-index: 900;
+  opacity: 0;
+}
+.ribbon.is-falling { animation: ribbon-fall 1600ms var(--ease-fall) forwards; }
+@keyframes ribbon-fall {
+  0%   { opacity: 0; transform: translateY(-180px) rotate(-2deg); }
+  10%  { opacity: 1; }
+  85%  { opacity: 1; transform: translateY(0) rotate(3deg); }
+  100% { opacity: 0.85; transform: translateY(0) rotate(3deg); }
+}
+
+/* hats spin (disco) */
+.paddock.is-spinning .hat-stack .hat:first-child {
+  animation: hat-orbit 6000ms linear 1;
+}
+@keyframes hat-orbit {
+  to { transform: rotate(360deg); }
+}
+
+/* drifting petal (rose + Femme) */
+.petal {
+  position: fixed;
+  font-size: 14px;
+  pointer-events: none;
+  z-index: 900;
+  opacity: 0;
+}
+.petal.is-drifting { animation: petal-drift 7200ms linear forwards; }
+@keyframes petal-drift {
+  0%   { opacity: 0; transform: translate(0,0) rotate(0deg); }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx, 320px), var(--dy, 60px)) rotate(540deg); }
+}
+
+/* saddle cursor (RIDE) */
+.paddock.is-saddled,
+.paddock.is-saddled .pony {
+  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'><text y='22' font-size='22'>🐴</text></svg>") 14 14, grab;
+}
+
+/* ============================================================ PROCESSION (G) */
+
+.paddock.is-show {
+  background-color: var(--paper-2);
+}
+.paddock.is-show .stamp {
+  opacity: 0.55;
+  transition: opacity 800ms var(--ease-soft);
+}
+.paddock.is-show .affordance,
+.paddock.is-show .hint,
+.paddock.is-show .recall,
+.paddock.is-show .mute,
+.paddock.is-show .ring,
+.paddock.is-show .compass,
+.paddock.is-show .fold {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 600ms var(--ease-soft);
+}
+
+.paddock.is-show::after {
+  content: "";
+  position: absolute;
+  left: 6%; right: 6%;
+  top: 50%;
+  height: 1px;
+  background: repeating-linear-gradient(
+    to right,
+    var(--ink-3) 0, var(--ink-3) 4px,
+    transparent 4px, transparent 10px
+  );
+  opacity: 0.35;
+  pointer-events: none;
+  z-index: 1;
+  animation: horizon-fade 800ms var(--ease-soft) both;
+}
+@keyframes horizon-fade {
+  from { opacity: 0; }
+  to   { opacity: 0.35; }
+}
+
+.paddock.is-show .pony {
+  transition:
+    transform 1400ms var(--ease-soft),
+    filter 600ms var(--ease-soft);
+}
+.paddock.is-show .pony.is-offstage {
+  opacity: 0;
+  transition: transform 1400ms var(--ease-soft), opacity 400ms var(--ease-soft);
+}
+.paddock.is-show .pony.is-onstage {
+  filter: saturate(1.05) brightness(1);
+  z-index: 9000 !important;
+}
+.paddock.is-show .pony.is-dim {
+  filter: saturate(0.6) brightness(0.92);
+  opacity: 0.55;
+}
+
+.procession {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(2rem, 8vw, 4rem);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 50;
+  max-width: min(92vw, 540px);
+  transition: opacity 360ms var(--ease-soft);
+}
+.procession.is-visible { opacity: 1; }
+
+.procession__caption {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.procession__name {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-variation-settings: "opsz" 144;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  line-height: 1;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.procession__bio {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+.procession__counter {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 560px) {
+  .procession__name { font-size: 1.3rem; }
+  .procession__bio  { font-size: 10px; letter-spacing: 0.04em; }
+}
+
+/* ============================================================ WITNESS */
+
+.witness {
+  position: absolute;
+  bottom: clamp(0.85rem, 2vw, 1.4rem);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--accent);
+  pointer-events: none;
+  z-index: 4;
+  opacity: 0;
+  transition: opacity 600ms var(--ease-soft), transform 600ms var(--ease-soft);
+}
+.witness.is-stamped {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.witness.is-just-stamped {
+  animation: witness-stamp 700ms var(--ease-over) both;
+}
+@keyframes witness-stamp {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(4px) scale(1.4) rotate(-3deg); }
+  40%  { opacity: 1; transform: translateX(-50%) translateY(0)   scale(1.06) rotate(-1deg); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0)   scale(1)    rotate(0deg); }
 }
 
 /* ============================================================ A11Y / MOTION */
