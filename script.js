@@ -1128,6 +1128,245 @@
     paddock.classList.toggle('is-night', isNight)
   }
 
+  // ---------------------------------------------------------- WEATHER
+
+  const WEATHER_KEY      = 'pf:weather'
+  const WEATHER_SEEN_KEY = 'pf:weatherSeen'
+
+  // States with display labels and short tilt range. dusk only valid 17-20h, midnight folds at 23+.
+  const WEATHER_STATES = ['clear', 'breezy', 'overcast', 'drizzle', 'fog', 'dusk', 'aurora']
+
+  // Transition table: from -> [{ to, p }]. Probabilities sum ≤ 1; remainder = stay.
+  const TRANSITIONS = {
+    clear:    [{ to: 'breezy', p: 0.40 }, { to: 'overcast', p: 0.20 }, { to: 'fog', p: 0.05 }],
+    breezy:   [{ to: 'clear', p: 0.35 }, { to: 'overcast', p: 0.30 }, { to: 'drizzle', p: 0.10 }],
+    overcast: [{ to: 'clear', p: 0.60 }, { to: 'drizzle', p: 0.20 }, { to: 'fog', p: 0.10 }],
+    drizzle:  [{ to: 'overcast', p: 0.80 }, { to: 'clear', p: 0.05 }],
+    fog:      [{ to: 'overcast', p: 0.50 }, { to: 'clear', p: 0.30 }],
+    dusk:     [{ to: 'clear', p: 0.50 }, { to: 'overcast', p: 0.30 }],
+    aurora:   [], // resolved by timer back to previous
+  }
+
+  // Wind direction per state — N/E/S/W; breezy and drizzle have stronger directional flavor.
+  const WIND_DIRS = ['N', 'E', 'S', 'W']
+
+  // Tilt magnitude per state in degrees (0-3).
+  const TILT_FOR = { clear: 0, breezy: 2.4, overcast: 0.6, drizzle: 1.2, fog: 0.2, dusk: 0.4, aurora: 0.4 }
+
+  const weatherChip = document.getElementById('weatherChip')
+  const witnessAurora = document.getElementById('witnessAurora')
+
+  /** @type {{state:string, dir:string, since:number, nextAt:number, prev?:string, auroraUntil?:number}} */
+  let weather = null
+  let weatherTimer = 0
+  let auroraTimer = 0
+
+  function loadWeather() {
+    try {
+      const raw = localStorage.getItem(WEATHER_KEY)
+      if (!raw) return null
+      const w = JSON.parse(raw)
+      if (!w || !WEATHER_STATES.includes(w.state)) return null
+      return w
+    } catch (_) { return null }
+  }
+
+  function saveWeather() {
+    try { localStorage.setItem(WEATHER_KEY, JSON.stringify(weather)) } catch (_) {}
+  }
+
+  function loadWeatherSeen() {
+    try { return new Set(JSON.parse(localStorage.getItem(WEATHER_SEEN_KEY) || '[]')) }
+    catch (_) { return new Set() }
+  }
+  function addWeatherSeen(stamp) {
+    const s = loadWeatherSeen()
+    s.add(stamp)
+    try { localStorage.setItem(WEATHER_SEEN_KEY, JSON.stringify([...s])) } catch (_) {}
+  }
+
+  function chipText() {
+    if (!weather) return ''
+    const dir = weather.dir
+    const s = weather.state
+    if (s === 'aurora')   return `aurora ✦`
+    if (s === 'drizzle')  return `drizzle ◌ ${dir}`
+    if (s === 'fog')      return `fog`
+    if (s === 'breezy')   return `breezy · ${dir}`
+    if (s === 'dusk')     return `dusk`
+    if (s === 'overcast') return `overcast`
+    return `clear · ${dir}`
+  }
+
+  function applyWeather() {
+    if (!weather) return
+    // Strip all weather classes, then apply the active state.
+    WEATHER_STATES.forEach(s => paddock.classList.remove('is-w-' + s))
+    paddock.classList.add('is-w-' + weather.state)
+    paddock.classList.toggle('is-w-aurora', weather.state === 'aurora')
+
+    // Tilt direction: N=0, E=positive, S=0, W=negative. Magnitude per state.
+    const mag = TILT_FOR[weather.state] || 0
+    const sign = (weather.dir === 'E') ? 1 : (weather.dir === 'W') ? -1 : 0
+    const tilt = mag * sign
+    paddock.style.setProperty('--weather-tilt', `${tilt.toFixed(2)}deg`)
+
+    // Compass tick: brighten the active wind direction.
+    document.querySelectorAll('.compass').forEach(c => c.classList.remove('is-wind'))
+    const compassEl = document.querySelector('.compass--' + weather.dir.toLowerCase())
+    if (compassEl) compassEl.classList.add('is-wind')
+
+    // Chip
+    weatherChip.classList.toggle('is-aurora', weather.state === 'aurora')
+    const txt = weatherChip.querySelector('.weather-chip__txt')
+    if (txt) txt.textContent = chipText()
+  }
+
+  function pickTransition(from) {
+    const opts = TRANSITIONS[from] || []
+    const r = Math.random()
+    let acc = 0
+    for (const o of opts) {
+      acc += o.p
+      if (r < acc) return o.to
+    }
+    return from // stay
+  }
+
+  function pickWindDir(from) {
+    // 70% keep direction; 30% rotate by ±90 (rarely 180).
+    if (Math.random() < 0.7 && from) return from
+    const idx = Math.max(0, WIND_DIRS.indexOf(from || 'N'))
+    const turn = Math.random() < 0.85 ? (Math.random() < 0.5 ? 1 : -1) : 2
+    return WIND_DIRS[(idx + turn + 4) % 4]
+  }
+
+  function scheduleNextTransition() {
+    if (weatherTimer) clearTimeout(weatherTimer)
+    const remaining = Math.max(1000, weather.nextAt - Date.now())
+    weatherTimer = setTimeout(runTransition, remaining)
+  }
+
+  function runTransition() {
+    if (!weather) return
+    // If currently in aurora, the aurora timer handles its own resolution.
+    if (weather.state === 'aurora') {
+      // Safety: in case timer was lost across reload, end it now if past the window.
+      if (Date.now() >= (weather.auroraUntil || 0)) endAurora()
+      else { scheduleNextTransition(); return }
+    }
+
+    // 1% chance of aurora trigger from any non-aurora state.
+    if (Math.random() < 0.01) {
+      startAurora()
+      return
+    }
+
+    // Time-of-day fold-in: 17-20 local hour can roll dusk; 23+ already handled by .is-night.
+    const hr = new Date().getHours()
+    let next = pickTransition(weather.state)
+    if (hr >= 17 && hr < 21 && Math.random() < 0.25 && weather.state !== 'dusk') next = 'dusk'
+    if (hr >= 21 && weather.state === 'dusk') next = 'overcast'
+
+    weather.state = next
+    weather.dir   = pickWindDir(weather.dir)
+    weather.since = Date.now()
+    weather.nextAt = Date.now() + (4 + Math.random() * 4) * 60_000
+
+    applyWeather()
+    saveWeather()
+    scheduleNextTransition()
+  }
+
+  function startAurora() {
+    weather.prev = (weather.state !== 'aurora') ? weather.state : (weather.prev || 'clear')
+    weather.state = 'aurora'
+    weather.since = Date.now()
+    weather.auroraUntil = Date.now() + 90_000
+    weather.nextAt = weather.auroraUntil + 1000
+    addWeatherSeen('aurora')
+    if (witnessAurora) witnessAurora.classList.add('is-stamped')
+    applyWeather()
+    saveWeather()
+
+    if (auroraTimer) clearTimeout(auroraTimer)
+    const ms = Math.max(0, weather.auroraUntil - Date.now())
+    auroraTimer = setTimeout(endAurora, reduceMotion ? 1500 : ms)
+    scheduleNextTransition()
+  }
+
+  function endAurora() {
+    if (!weather || weather.state !== 'aurora') return
+    weather.state = weather.prev || 'clear'
+    weather.since = Date.now()
+    weather.nextAt = Date.now() + (4 + Math.random() * 4) * 60_000
+    delete weather.auroraUntil
+    applyWeather()
+    saveWeather()
+    scheduleNextTransition()
+  }
+
+  function cycleWeatherManual() {
+    if (!weather) return
+    // Walk through visible states (skip aurora — that's earned).
+    const visible = ['clear', 'breezy', 'overcast', 'drizzle', 'fog', 'dusk']
+    const i = visible.indexOf(weather.state)
+    weather.state = visible[(i + 1) % visible.length]
+    weather.dir = pickWindDir(weather.dir)
+    weather.since = Date.now()
+    weather.nextAt = Date.now() + (4 + Math.random() * 4) * 60_000
+    applyWeather()
+    saveWeather()
+    scheduleNextTransition()
+  }
+
+  function initWeather() {
+    const stored = loadWeather()
+    if (stored) {
+      weather = stored
+      // If we were mid-aurora and the window hasn't closed, keep going.
+      if (weather.state === 'aurora' && weather.auroraUntil && Date.now() < weather.auroraUntil) {
+        applyWeather()
+        const ms = weather.auroraUntil - Date.now()
+        auroraTimer = setTimeout(endAurora, reduceMotion ? 1500 : ms)
+        if (loadWeatherSeen().has('aurora') && witnessAurora) witnessAurora.classList.add('is-stamped')
+        scheduleNextTransition()
+        return
+      }
+      // If aurora window expired during reload, resolve it.
+      if (weather.state === 'aurora') {
+        weather.state = weather.prev || 'clear'
+        delete weather.auroraUntil
+      }
+      // If nextAt already passed, run a transition immediately.
+      if (Date.now() >= (weather.nextAt || 0)) {
+        applyWeather()
+        runTransition()
+      } else {
+        applyWeather()
+        scheduleNextTransition()
+      }
+    } else {
+      weather = {
+        state: 'clear',
+        dir:   WIND_DIRS[Math.floor(Math.random() * 4)],
+        since: Date.now(),
+        nextAt: Date.now() + (4 + Math.random() * 4) * 60_000,
+      }
+      applyWeather()
+      saveWeather()
+      scheduleNextTransition()
+    }
+    if (loadWeatherSeen().has('aurora') && witnessAurora) witnessAurora.classList.add('is-stamped')
+  }
+
+  if (weatherChip) {
+    weatherChip.addEventListener('click', (e) => {
+      e.stopPropagation()
+      cycleWeatherManual()
+    })
+  }
+
   // ---------------------------------------------------------- MUTE
 
   muteBtn.addEventListener('click', () => {
@@ -1576,6 +1815,7 @@
     sortDepth()
     tickClock()
     setInterval(tickClock, 60_000)
+    initWeather()
     scheduleIdle()
     requestAnimationFrame(tick)
   }

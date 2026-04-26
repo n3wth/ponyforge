@@ -26,6 +26,24 @@
 
     <main id="paddock" class="paddock" aria-label="Paddock — six horses, twelve hats">
 
+      <div class="sky" aria-hidden="true"></div>
+      <div class="weather-fx" aria-hidden="true">
+        <svg class="weather-fx__drizzle" width="100%" height="100%" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <pattern id="pf-drizzle" patternUnits="userSpaceOnUse" width="14" height="14" patternTransform="rotate(70)">
+              <line x1="0" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#pf-drizzle)"/>
+        </svg>
+        <div class="weather-fx__fog" aria-hidden="true"></div>
+        <div class="weather-fx__aurora" aria-hidden="true"></div>
+      </div>
+
+      <button id="weatherChip" class="weather-chip" type="button" aria-label="Weather — click to cycle">
+        <span class="weather-chip__txt">clear</span>
+      </button>
+
       <div class="stamp">
         <span class="stamp__name">Ponyforge</span>
         <span class="stamp__sub">studbook &amp; millinery · MMXXVI</span>
@@ -91,6 +109,7 @@
       </div>
 
       <p class="witness" id="witness" aria-hidden="true">(witnessed · MMXXVI)</p>
+      <p class="witness--aurora" id="witnessAurora" aria-hidden="true">(saw aurora)</p>
 
       <div class="toast" id="toast" aria-live="polite"></div>
 
