@@ -168,6 +168,42 @@ body::before {
 
 .manifesto p:nth-child(2) { color: var(--accent); }
 
+/* ---------- HOW TO ---------- */
+
+.howto {
+  margin: 1.5rem 0 1.75rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem 1.8rem;
+  font-family: Inter, sans-serif;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  color: var(--paper);
+  opacity: 0.9;
+}
+
+.howto-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.howto-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
 /* ---------- SITE FOOTER ---------- */
 
 .site-footer {
