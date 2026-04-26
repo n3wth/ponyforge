@@ -1010,3 +1010,67 @@ body {
 .paddock.is-show .weather-fx__aurora { opacity: 0; transition: opacity 600ms var(--ease-soft); }
 .paddock.is-show .sky { opacity: 0.5; }
 .paddock.is-show .weather-chip { opacity: 0; pointer-events: none; transition: opacity 600ms var(--ease-soft); }
+
+/* ============================================================ TRAILS */
+
+.trails {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 3;
+  overflow: visible;
+}
+.trails[hidden],
+.trails.is-off { display: none; }
+
+.trails-toggle {
+  position: absolute;
+  bottom: clamp(0.85rem, 2vw, 1.4rem);
+  left: clamp(7.5rem, 14vw, 9.5rem);
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--ink-3);
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  z-index: 6;
+  transition: background 200ms var(--ease-soft), color 200ms var(--ease-soft), border-color 200ms var(--ease-soft);
+}
+.trails-toggle:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.trails-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.trails-toggle .trails-toggle__off { display: none; }
+.trails-toggle[aria-pressed="false"] .trails-toggle__on  { display: none; }
+.trails-toggle[aria-pressed="false"] .trails-toggle__off { display: inline; }
+.trails-toggle[aria-pressed="false"] { color: var(--ink-3); }
+
+.paddock.is-show .trails-toggle { opacity: 0; pointer-events: none; transition: opacity 600ms var(--ease-soft); }
+.paddock.is-show .trails { opacity: 0.5; transition: opacity 600ms var(--ease-soft); }
+
+.marks-stamp {
+  position: absolute;
+  bottom: clamp(0.85rem, 2vw, 1.4rem);
+  left: clamp(13.5rem, 26vw, 17rem);
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: lowercase;
+  color: var(--ink-3);
+  pointer-events: none;
+  z-index: 5;
+  padding: 0.5rem 0;
+  opacity: 0;
+  transition: opacity 600ms var(--ease-soft);
+}
+.marks-stamp.is-on { opacity: 1; }
+
+@media (max-width: 560px) {
+  .trails-toggle { font-size: 9px; padding: 0.4rem 0.6rem; letter-spacing: 0.14em; left: clamp(6rem, 26vw, 8rem); }
+  .marks-stamp { font-size: 9px; left: clamp(11.5rem, 50vw, 14rem); letter-spacing: 0.14em; }
+}

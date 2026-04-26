@@ -60,6 +60,11 @@
       </div>
 
       <button id="recall" class="recall" type="button" aria-label="Recall all horses to their starting positions">recall</button>
+      <button id="trailsToggle" class="trails-toggle" type="button" aria-label="Toggle trails" aria-pressed="true">
+        <span class="trails-toggle__on">trails</span>
+        <span class="trails-toggle__off">trails ◌</span>
+      </button>
+      <span id="marksStamp" class="marks-stamp" aria-hidden="true"></span>
       <button id="mute" class="mute" type="button" aria-label="Toggle sound" aria-pressed="true">
         <span class="mute__on">sound on</span>
         <span class="mute__off">sound off</span>
@@ -78,6 +83,8 @@
         <span class="hint__sep">·</span>
         <span>drag anywhere</span>
       </p>
+
+      <svg id="trails" class="trails" aria-hidden="true" preserveAspectRatio="none"></svg>
 
       <div class="herd" id="herd"></div>
 
