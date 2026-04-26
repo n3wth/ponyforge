@@ -42,6 +42,16 @@
       </div>
 
       <button id="recall" class="recall" type="button" aria-label="Recall all horses to their starting positions">recall</button>
+      <button id="mute" class="mute" type="button" aria-label="Toggle sound" aria-pressed="false">
+        <span class="mute__on">sound on</span>
+        <span class="mute__off">sound off</span>
+      </button>
+
+      <p class="affordance" id="affordance" aria-hidden="true">
+        <span class="affordance__key">G</span>
+        <span class="affordance__sep">·</span>
+        <span>procession</span>
+      </p>
 
       <p class="hint" id="hint" aria-live="polite">
         <span>click a horse</span>
@@ -51,44 +61,7 @@
         <span>drag anywhere</span>
       </p>
 
-      <div class="herd" id="herd">
-        <button class="pony" data-name="Iris" data-plate="PF·001" data-hat="🏳️‍🌈"
-                aria-label="Iris — drag to move, press space to pick a hat">
-          <span class="pony__plate">PF·001</span>
-          <span class="hat-slot" aria-hidden="true">🏳️‍🌈</span>
-          <img src="./assets/pony-iris.png" alt="Iris, a dark bay mare with braided forelock" draggable="false" />
-        </button>
-        <button class="pony" data-name="Vesper" data-plate="PF·002" data-hat="💋"
-                aria-label="Vesper — drag to move, press space to pick a hat">
-          <span class="pony__plate">PF·002</span>
-          <span class="hat-slot" aria-hidden="true">💋</span>
-          <img src="./assets/pony-vesper.png" alt="Vesper, a roan mare at dusk" draggable="false" />
-        </button>
-        <button class="pony" data-name="Onyx" data-plate="PF·003" data-hat="🦋"
-                aria-label="Onyx — drag to move, press space to pick a hat">
-          <span class="pony__plate">PF·003</span>
-          <span class="hat-slot" aria-hidden="true">🦋</span>
-          <img src="./assets/pony-onyx.png" alt="Onyx, a black gelding in the woods" draggable="false" />
-        </button>
-        <button class="pony" data-name="Prism" data-plate="PF·004" data-hat="✨"
-                aria-label="Prism — drag to move, press space to pick a hat">
-          <span class="pony__plate">PF·004</span>
-          <span class="hat-slot" aria-hidden="true">✨</span>
-          <img src="./assets/pony-prism.png" alt="Prism, a chestnut at golden hour" draggable="false" />
-        </button>
-        <button class="pony" data-name="Sable" data-plate="PF·005" data-hat="🏳️‍⚧️"
-                aria-label="Sable — drag to move, press space to pick a hat">
-          <span class="pony__plate">PF·005</span>
-          <span class="hat-slot" aria-hidden="true">🏳️‍⚧️</span>
-          <img src="./assets/pony-sable.png" alt="Sable, a dappled grey in show ribbons" draggable="false" />
-        </button>
-        <button class="pony" data-name="Femme" data-plate="PF·006" data-hat="🥀"
-                aria-label="Femme — drag to move, press space to pick a hat">
-          <span class="pony__plate">PF·006</span>
-          <span class="hat-slot" aria-hidden="true">🥀</span>
-          <img src="./assets/pony-femme.png" alt="Femme, a roan in red velvet light" draggable="false" />
-        </button>
-      </div>
+      <div class="herd" id="herd"></div>
 
       <div class="ring" id="ring" role="dialog" aria-label="Choose a hat" aria-hidden="true">
         <div class="ring__center">
@@ -108,6 +81,18 @@
         <button class="ring__hat" data-hat="✨" data-key="-" aria-label="Sparkle (-)"><span class="g">✨</span><span class="k">-</span></button>
         <button class="ring__hat" data-hat="🥀" data-key="=" aria-label="Rose (=)"><span class="g">🥀</span><span class="k">=</span></button>
       </div>
+
+      <div class="procession" id="procession" aria-hidden="true">
+        <p class="procession__caption" aria-live="polite">
+          <span class="procession__name"></span>
+          <span class="procession__bio"></span>
+        </p>
+        <p class="procession__counter" id="processionCounter"></p>
+      </div>
+
+      <p class="witness" id="witness" aria-hidden="true">(witnessed · MMXXVI)</p>
+
+      <div class="toast" id="toast" aria-live="polite"></div>
 
     </main>
 
