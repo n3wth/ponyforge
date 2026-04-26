@@ -1,20 +1,14 @@
 /*
-  Ponyforge — game-ux pass 2026.
+  Ponyforge — sandbox rev 2026.
 
-  Designer note: this rev redesigns the INTERACTION MODEL only — type
-  system (Fraunces + JetBrains Mono), oxblood-on-paper palette, and
-  ink-on-ledger feel are kept verbatim from the catalogue rev. What
-  changed: the page IS the paddock (full viewport, fenced by a single
-  inset rule). All six horses live in the world from page-load at a
-  balanced semi-random spread. The bottom hat-strip is gone; hats now
-  summon as a contextual radial ring around the tapped horse, with
-  number-row keyboard shortcuts (1-9, 0, -, =) so the tool follows the
-  cursor instead of forcing a reach. The studbook list is gone — recall
-  is a small pill in the corner. The title became a stamp inside the
-  world. Drag uses pointer events (mouse + touch share one path),
-  is rAF-driven on transforms only, and lands with a cubic-bezier
-  overshoot; depth and cast-shadow scale by y-position so back-row
-  horses feel further away.
+  Building on the catalogue/paddock pass: this rev turns the toy into a
+  sandbox. Equipment now stacks (hats + glasses + accessories + tail bow)
+  with up to 3 hats per horse rendered as a vertical pile above the head.
+  The radial palette is mode-aware (Tab cycles slot). Specimen-tag
+  controls (mode/save/share/recall/tidy) sit in the corner — flat, mono,
+  no chrome. Drawing happens on a Canvas2D layer on Shift+drag. Names are
+  contenteditable JetBrains Mono captions below each horse. State
+  persists to localStorage and round-trips through the URL hash.
 */
 
 :root {
@@ -66,7 +60,7 @@ body {
 }
 .skip:focus { left: 1rem; top: 1rem; z-index: 100; }
 
-/* ============================================================ PADDOCK = PAGE */
+/* ============================================================ PADDOCK */
 
 .paddock {
   position: fixed;
@@ -90,11 +84,21 @@ body {
   touch-action: none;
 }
 
-.paddock.is-holding {
-  background-color: var(--paper-2);
+.paddock.is-holding { background-color: var(--paper-2); }
+.paddock.is-drawing { cursor: crosshair; }
+
+/* ============================================================ INK CANVAS */
+
+.ink {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 8;
+  pointer-events: none;
 }
 
-/* ============================================================ STAMP (title) */
+/* ============================================================ STAMP */
 
 .stamp {
   position: absolute;
@@ -139,7 +143,7 @@ body {
 .compass--e { right: 0.85rem; top: 50%; transform: translateY(-50%) rotate(90deg); transform-origin: center; }
 .compass--w { left: 0.85rem;  top: 50%; transform: translateY(-50%) rotate(-90deg); transform-origin: center; }
 
-/* ============================================================ FOLD CAPTION */
+/* ============================================================ FOLD */
 
 .fold {
   position: absolute;
@@ -159,27 +163,56 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* ============================================================ RECALL PILL */
+/* ============================================================ TAGS (corner) */
 
-.recall {
+.tags {
   position: absolute;
   top: clamp(1rem, 2.4vw, 1.75rem);
   right: clamp(1rem, 2.4vw, 1.75rem);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+  z-index: 6;
+}
+
+.tag {
   appearance: none;
-  background: transparent;
+  background: var(--paper);
   border: 1px solid var(--ink);
   color: var(--ink);
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  padding: 0.5rem 0.85rem;
+  padding: 0.35rem 0.6rem;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.55rem;
   cursor: pointer;
-  z-index: 6;
-  transition: background 200ms var(--ease-soft), color 200ms var(--ease-soft);
+  min-width: 7.5rem;
+  justify-content: space-between;
+  transition: background 160ms var(--ease-soft), color 160ms var(--ease-soft);
 }
-.recall:hover { background: var(--ink); color: var(--paper); }
-.recall:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tag:hover { background: var(--ink); color: var(--paper); }
+.tag:hover .tag__k { color: var(--paper); }
+.tag:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tag__k {
+  color: var(--accent);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+.tag__v {
+  font-weight: 500;
+}
+.tag--warn .tag__k { color: var(--accent); }
+.tag.is-armed { background: var(--accent); color: var(--paper); border-color: var(--accent); }
+.tag.is-armed .tag__k { color: var(--paper); }
+
+@media (max-width: 560px) {
+  .tags { gap: 0.3rem; }
+  .tag { min-width: 6rem; padding: 0.3rem 0.5rem; font-size: 9px; }
+}
 
 /* ============================================================ HINT */
 
@@ -190,23 +223,51 @@ body {
   transform: translateX(-50%);
   margin: 0;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 0.55rem;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--ink-3);
   pointer-events: none;
   z-index: 4;
   white-space: nowrap;
+  max-width: min(90vw, 720px);
   transition: opacity 380ms var(--ease-soft);
 }
 .hint__sep { color: var(--accent); }
 .hint.is-faded { opacity: 0; }
 
-@media (max-width: 560px) {
-  .hint { font-size: 9px; gap: 0.4rem; letter-spacing: 0.14em; }
+@media (max-width: 720px) {
+  .hint { font-size: 9px; gap: 0.35rem; letter-spacing: 0.12em; }
   .fold { display: none; }
+}
+
+/* ============================================================ TOAST */
+
+.toast {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(0.96);
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 0.7rem 1.1rem;
+  z-index: 2000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms var(--ease-soft), transform 240ms var(--ease-over);
+  white-space: nowrap;
+}
+.toast.is-on {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
 }
 
 /* ============================================================ HERD */
@@ -276,13 +337,16 @@ body {
     );
   opacity: calc((1 - var(--depth) * 0.35) * (1 - var(--lift) * 0.25));
   pointer-events: none;
-  transition: opacity 240ms var(--ease-soft);
 }
 
 .pony.is-lifted {
   cursor: grabbing;
   z-index: 9999 !important;
   filter: saturate(1) brightness(1) drop-shadow(0 18px 22px rgba(20,19,15,0.28));
+}
+
+.pony.is-cloning {
+  filter: saturate(1) brightness(1.05);
 }
 
 .pony.is-landing {
@@ -318,35 +382,92 @@ body {
   pointer-events: none;
 }
 
-.hat-slot {
+/* slots */
+
+.slot {
   position: absolute;
-  top: 6%;
-  left: 50%;
-  transform: translate(-50%, 0);
-  font-size: clamp(1.6rem, 3.2vw, 2.2rem);
-  line-height: 1;
   pointer-events: none;
   z-index: 2;
   filter: drop-shadow(0 1px 0 rgba(0,0,0,0.35));
+  line-height: 1;
 }
 
-.hat-slot.is-falling {
-  animation: hat-fall 320ms var(--ease-fall) forwards;
+/* hat stack: vertically piled above the head */
+.slot--hats {
+  top: 4px;
+  left: 50%;
+  transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column-reverse; /* first equipped hat sits closest to head */
+  align-items: center;
 }
-.hat-slot.is-landing {
+.slot--hats .glyph {
+  font-size: clamp(1.4rem, 2.8vw, 1.9rem);
+  display: block;
+  margin-top: -10px;
+}
+.slot--hats .glyph:last-child { margin-top: 0; }
+
+.slot--glasses {
+  top: 32%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: clamp(1rem, 1.9vw, 1.3rem);
+}
+.slot--accessory {
+  top: 62%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: clamp(1rem, 1.9vw, 1.3rem);
+}
+.slot--tail {
+  top: 68%;
+  right: -6px;
+  font-size: clamp(0.9rem, 1.6vw, 1.2rem);
+  transform: rotate(-12deg);
+}
+
+.slot--hats.is-landing .glyph:first-child {
   animation: hat-land 380ms var(--ease-land) both;
 }
-@keyframes hat-fall {
-  0%   { transform: translate(-50%, 0)    rotate(0deg);   opacity: 1; }
-  100% { transform: translate(-50%, 22px) rotate(-14deg); opacity: 0; }
-}
 @keyframes hat-land {
-  0%   { transform: translate(-50%, -28px) rotate(8deg); opacity: 0; }
-  60%  { transform: translate(-50%, 2px)   rotate(-2deg); opacity: 1; }
-  100% { transform: translate(-50%, 0)     rotate(0deg);  opacity: 1; }
+  0%   { transform: translateY(-28px) rotate(8deg); opacity: 0; }
+  60%  { transform: translateY(2px)   rotate(-2deg); opacity: 1; }
+  100% { transform: translateY(0)     rotate(0deg);  opacity: 1; }
 }
 
-/* ============================================================ HAT RING */
+/* name caption below pony */
+.pony__name {
+  position: absolute;
+  left: 50%;
+  bottom: -22px;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--paper);
+  border-bottom: 1px solid var(--ink);
+  padding: 0.1rem 0.4rem 0.05rem;
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: text;
+  outline: none;
+  min-width: 2rem;
+  text-align: center;
+}
+.pony__name:empty::before {
+  content: "—";
+  color: var(--ink-3);
+}
+.pony__name:focus {
+  background: var(--ink);
+  color: var(--paper);
+  border-bottom-color: var(--accent);
+}
+
+/* ============================================================ RING */
 
 .ring {
   position: fixed;
@@ -389,7 +510,6 @@ body {
 .ring__caption {
   font-family: var(--serif);
   font-size: 13px;
-  font-style: normal;
   color: var(--ink);
   letter-spacing: 0.01em;
 }
@@ -429,9 +549,7 @@ body {
     background 160ms var(--ease-soft),
     color 160ms var(--ease-soft);
 }
-.ring.is-open .ring__hat {
-  opacity: 1;
-}
+.ring.is-open .ring__hat { opacity: 1; }
 .ring__hat .g {
   font-size: 22px;
   line-height: 1;
@@ -444,10 +562,7 @@ body {
   color: var(--ink-3);
   font-variant-numeric: tabular-nums;
 }
-.ring__hat:hover {
-  background: var(--ink);
-  color: var(--paper);
-}
+.ring__hat:hover { background: var(--ink); color: var(--paper); }
 .ring__hat:hover .k { color: var(--paper); }
 .ring__hat:focus-visible {
   outline: 2px solid var(--accent);
@@ -458,6 +573,13 @@ body {
   color: var(--paper);
 }
 .ring__hat.is-active .k { color: var(--paper); }
+.ring__hat.is-clear {
+  background: var(--paper-3);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
 
 @media (max-width: 720px) {
   .ring__hat { width: 44px; height: 44px; margin: -22px 0 0 -22px; }
