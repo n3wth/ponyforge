@@ -1,297 +1,383 @@
-// Ponyforge — interaction script.
-// Direction: studbook & millinery. Tactile, weighted, considered.
-// Notes: no idle animation; all motion is reactive.
+// Ponyforge — game-ux interaction layer.
+// Model: page = paddock; ponies live in the world; hats summon as a
+// radial palette around the tapped horse; pointer events power both
+// mouse and touch with one drag path; rAF-driven so transforms never
+// fight layout. Number-row keys assign hats; arrows nudge a focused
+// pony; space/enter opens the ring; r recalls.
 
 (() => {
-  const hats     = document.querySelectorAll('.hat')
-  const ponies   = document.querySelectorAll('.pony')
-  const entries  = document.querySelectorAll('.entry')
-  const paddock  = document.getElementById('paddock')
-  const stable   = document.getElementById('stable')
-  const recall   = document.getElementById('recall')
+  const paddock   = document.getElementById('paddock')
+  const ring      = document.getElementById('ring')
+  const ringTarget= document.getElementById('ringTarget')
+  const recallBtn = document.getElementById('recall')
+  const hint      = document.getElementById('hint')
+  const ponies    = [...document.querySelectorAll('.pony')]
+  const ringHats  = [...document.querySelectorAll('.ring__hat')]
+
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-  let currentHat = '🎩'
+  // ---------------------------------------------------------- STATE
 
-  // ---------------------------------------------------------- HAT PALETTE
+  const home = new Map()      // pony -> [x, y] starting position
+  let dragging = null
+  let dragId = 0
+  let dragOffX = 0, dragOffY = 0
+  let dragStartX = 0, dragStartY = 0
+  let dragX = 0, dragY = 0
+  let didMove = false
+  let rafQueued = false
+  let lastFocusedPony = null
+  let ringTargetPony = null
+  let hintFaded = false
 
-  const setHat = (btn) => {
-    hats.forEach(h => h.setAttribute('aria-checked', h === btn ? 'true' : 'false'))
-    currentHat = btn.dataset.hat
+  // ---------------------------------------------------------- HELPERS
+
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
+
+  function setXY(pony, x, y) {
+    pony._x = x; pony._y = y
+    pony.style.setProperty('--x', `${x}px`)
+    pony.style.setProperty('--y', `${y}px`)
   }
 
-  hats.forEach(h => {
-    h.addEventListener('click', () => setHat(h))
-    h.addEventListener('keydown', (e) => {
-      // arrow-key navigation across the palette
-      const idx = [...hats].indexOf(h)
-      let next = -1
-      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (idx + 1) % hats.length
-      if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   next = (idx - 1 + hats.length) % hats.length
-      if (next >= 0) {
-        e.preventDefault()
-        setHat(hats[next])
-        hats[next].focus()
-      }
+  function sortDepth() {
+    const r = paddock.getBoundingClientRect()
+    const h = r.height || 1
+    ponies.forEach(p => {
+      const y = p._y || 0
+      const depth = clamp(0.55 - (y / h) * 0.55, 0, 0.55)
+      p.style.setProperty('--depth', depth.toFixed(3))
+      p.style.setProperty('--z', String(Math.round(100 + y)))
     })
-  })
+  }
+
+  function fadeHint() {
+    if (hintFaded || !hint) return
+    hintFaded = true
+    hint.classList.add('is-faded')
+  }
+
+  // ---------------------------------------------------------- LAYOUT
+
+  function layoutHerd() {
+    const r = paddock.getBoundingClientRect()
+    const w = r.width, h = r.height
+    const probe = ponies[0]
+    const pw = probe.offsetWidth || 150
+    const ph = probe.offsetHeight || 84
+
+    const cols = 3, rows = 2
+    const padX = 32
+    const padTop = 96       // room for stamp + recall
+    const padBot = 56       // room for fold/hint
+    const cellW = (w - padX * 2) / cols
+    const cellH = (h - padTop - padBot) / rows
+
+    // perturbations are deterministic — balanced, never clustered
+    const perturb = [
+      [ 0.10, -0.18], [-0.14,  0.12], [ 0.18,  0.20],
+      [-0.20, -0.12], [ 0.16,  0.18], [-0.08, -0.20],
+    ]
+
+    ponies.forEach((p, i) => {
+      const col = i % cols
+      const row = Math.floor(i / cols)
+      const cx = padX + col * cellW + (cellW - pw) / 2
+      const cy = padTop + row * cellH + (cellH - ph) / 2
+      const [px, py] = perturb[i] || [0, 0]
+      const x = clamp(cx + px * cellW * 0.4, 8, w - pw - 8)
+      const y = clamp(cy + py * cellH * 0.4, padTop - 40, h - ph - padBot)
+      setXY(p, x, y)
+      home.set(p, [x, y])
+    })
+    sortDepth()
+  }
 
   // ---------------------------------------------------------- HAT FITTING
 
-  // Choreography: the previous hat falls (drop + tilt + fade);
-  // a beat later the new hat lands from above.
-  const fitHat = (pony, newHat) => {
+  function fitHat(pony, glyph) {
     const slot = pony.querySelector('.hat-slot')
     if (!slot) return
     const prev = slot.textContent
-
-    if (reduceMotion || prev === newHat) {
-      slot.textContent = newHat
+    if (reduceMotion || prev === glyph) {
+      slot.textContent = glyph
+      pony.dataset.hat = glyph
       return
     }
-
-    // 1. animate previous hat falling out
     slot.classList.remove('is-landing')
     slot.classList.add('is-falling')
-
     slot.addEventListener('animationend', function onFall() {
       slot.removeEventListener('animationend', onFall)
       slot.classList.remove('is-falling')
-      // 2. swap glyph, then animate landing
-      slot.textContent = newHat
-      // force reflow so the next animation re-fires
+      slot.textContent = glyph
+      pony.dataset.hat = glyph
       void slot.offsetWidth
       slot.classList.add('is-landing')
       slot.addEventListener('animationend', () => slot.classList.remove('is-landing'), { once: true })
     }, { once: true })
   }
 
-  // ---------------------------------------------------------- ENTRY METADATA
+  // ---------------------------------------------------------- RING
 
-  // The unexpected detail: when a horse is first interacted with,
-  // we stamp a coordinate alongside its plate number — a paddock
-  // location, drawn from the horse's name. Subtle, persistent.
-  const stampCoord = (entry, x, y) => {
-    if (!entry) return
-    const w = paddock.clientWidth || 1
-    const h = paddock.clientHeight || 1
-    const col = String.fromCharCode(65 + Math.min(7, Math.floor((x / w) * 8)))  // A–H
-    const row = Math.min(5, Math.floor((y / h) * 5)) + 1                         // 1–5
-    const plate = entry.querySelector('.pony__plate')
-    if (plate) {
-      entry.dataset.touched = 'true'
-      plate.setAttribute('data-coord', `${col}·${row}`)
+  function placeRingHats() {
+    const n = ringHats.length
+    ringHats.forEach((h, i) => {
+      const a = -90 + (360 / n) * i
+      h.style.setProperty('--a', `${a}deg`)
+    })
+  }
+
+  function isRingOpen() { return ring.classList.contains('is-open') }
+
+  function openRingAt(x, y, pony) {
+    ringTargetPony = pony || null
+    ringTarget.textContent = pony ? pony.dataset.name : '—'
+    const cur = pony ? pony.dataset.hat : null
+    ringHats.forEach(h => h.classList.toggle('is-active', !!cur && h.dataset.hat === cur))
+    // measure ring; fall back to a sane default the first time (display:none-equivalent)
+    const rw = ring.offsetWidth || 540
+    const half = rw / 2
+    const margin = 12
+    const cx = clamp(x, half - margin, window.innerWidth  - half + margin)
+    const cy = clamp(y, half - margin, window.innerHeight - half + margin)
+    ring.style.left = `${cx}px`
+    ring.style.top  = `${cy}px`
+    ring.classList.add('is-open')
+    ring.setAttribute('aria-hidden', 'false')
+    fadeHint()
+  }
+
+  function closeRing() {
+    ring.classList.remove('is-open')
+    ring.setAttribute('aria-hidden', 'true')
+    ringTargetPony = null
+  }
+
+  ringHats.forEach(h => {
+    h.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const glyph = h.dataset.hat
+      const pony = ringTargetPony || lastFocusedPony
+      if (pony) fitHat(pony, glyph)
+      closeRing()
+      if (pony) pony.focus({ preventScroll: true })
+    })
+  })
+
+  paddock.addEventListener('pointerdown', (e) => {
+    if (!isRingOpen()) return
+    if (e.target.closest('.ring')) return
+    if (e.target.closest('.pony')) return  // let pony handler take over
+    closeRing()
+  }, true)
+
+  // ---------------------------------------------------------- DRAG
+
+  function onPonyPointerDown(e) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    const pony = e.currentTarget
+    lastFocusedPony = pony
+    dragging = pony
+    dragId = e.pointerId
+    didMove = false
+
+    const rect = pony.getBoundingClientRect()
+    dragOffX = e.clientX - rect.left
+    dragOffY = e.clientY - rect.top
+    dragStartX = e.clientX
+    dragStartY = e.clientY
+    dragX = pony._x
+    dragY = pony._y
+
+    try { pony.setPointerCapture(e.pointerId) } catch (_) {}
+    e.preventDefault()
+  }
+
+  function onPonyPointerMove(e) {
+    if (!dragging || e.pointerId !== dragId) return
+    const dx = e.clientX - dragStartX
+    const dy = e.clientY - dragStartY
+    if (!didMove && Math.hypot(dx, dy) > 4) {
+      didMove = true
+      dragging.classList.add('is-lifted')
+      dragging.style.setProperty('--lift', '1')
+      paddock.classList.add('is-holding')
+      fadeHint()
+      if (isRingOpen()) closeRing()
+    }
+    if (didMove) {
+      const r = paddock.getBoundingClientRect()
+      const pw = dragging.offsetWidth, ph = dragging.offsetHeight
+      const x = clamp(e.clientX - r.left - dragOffX, 4, r.width  - pw - 4)
+      const y = clamp(e.clientY - r.top  - dragOffY, 4, r.height - ph - 4)
+      dragX = x; dragY = y
+      const tilt = clamp(dx * 0.02, -6, 6)
+      dragging.style.setProperty('--r', `${tilt}deg`)
+      if (!rafQueued) {
+        rafQueued = true
+        requestAnimationFrame(applyDrag)
+      }
     }
   }
 
-  // ---------------------------------------------------------- DRAG (HTML5)
-
-  let dragged = null
-  let dragOffset = [0, 0]
-  let ghost = null
-  let originEntry = null   // remember home so we can return on cancel
-
-  const makeGhost = (pony) => {
-    const img = pony.querySelector('img')
-    const g = document.createElement('div')
-    g.className = 'drag-ghost'
-    g.innerHTML = `<img src="${img.src}" alt="" />`
-    document.body.appendChild(g)
-    return g
+  function applyDrag() {
+    rafQueued = false
+    if (!dragging) return
+    setXY(dragging, dragX, dragY)
   }
 
-  const moveGhost = (x, y) => {
-    if (!ghost) return
-    ghost.style.left = `${x}px`
-    ghost.style.top  = `${y}px`
+  function onPonyPointerUp(e) {
+    if (!dragging || e.pointerId !== dragId) return
+    const pony = dragging
+    try { pony.releasePointerCapture(dragId) } catch (_) {}
+    paddock.classList.remove('is-holding')
+
+    if (didMove) {
+      pony.classList.remove('is-lifted')
+      pony.style.setProperty('--lift', '0')
+      pony.style.setProperty('--r', '0deg')
+      sortDepth()
+      if (!reduceMotion) {
+        pony.classList.remove('is-landing')
+        void pony.offsetWidth
+        pony.classList.add('is-landing')
+        pony.addEventListener('animationend', () => pony.classList.remove('is-landing'), { once: true })
+      }
+    } else {
+      pony.classList.remove('is-lifted')
+      pony.style.setProperty('--lift', '0')
+      const rect = pony.getBoundingClientRect()
+      openRingAt(rect.left + rect.width / 2, rect.top + rect.height / 2, pony)
+    }
+    dragging = null
   }
 
-  const removeGhost = () => {
-    if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost)
-    ghost = null
-  }
-
-  // Re-sort paddock children so y-position determines z-index:
-  // a horse further down the canvas overlaps one further up.
-  const sortPaddockZ = () => {
-    const inPaddock = [...paddock.querySelectorAll('.pony')]
-    inPaddock.forEach(p => {
-      const top = parseFloat(p.style.top) || 0
-      // z = top, with a small base. Closer to bottom = higher z.
-      p.style.setProperty('--z', String(Math.round(top + 100)))
-      // depth = 0 (front) at bottom, 1 (back) at top of paddock
-      const h = paddock.clientHeight || 1
-      const depth = Math.max(0, Math.min(0.85, 1 - (top / h) - 0.1))
-      p.style.setProperty('--depth', depth.toFixed(3))
-    })
+  function onPonyPointerCancel() {
+    if (!dragging) return
+    dragging.classList.remove('is-lifted')
+    dragging.style.setProperty('--lift', '0')
+    dragging.style.setProperty('--r', '0deg')
+    paddock.classList.remove('is-holding')
+    dragging = null
   }
 
   ponies.forEach(p => {
-    // CLICK = fit hat (with the choreography)
-    p.addEventListener('click', () => {
-      if (p._wasDragged) { p._wasDragged = false; return }
-      fitHat(p, currentHat)
-    })
-
-    // KEYBOARD: Enter / Space fits hat (button default already does)
-    // No extra binding needed — buttons already trigger click on Enter/Space.
-
-    p.addEventListener('dragstart', (e) => {
-      dragged = p
-      originEntry = p.closest('.entry')   // null if already in paddock
-      const r = p.getBoundingClientRect()
-      dragOffset = [e.clientX - r.left, e.clientY - r.top]
-      e.dataTransfer.effectAllowed = 'move'
-      e.dataTransfer.setData('text/plain', 'pony')
-
-      // Hide the default browser drag image and use our own ghost.
-      const blank = document.createElement('canvas')
-      blank.width = blank.height = 1
-      e.dataTransfer.setDragImage(blank, 0, 0)
-      ghost = makeGhost(p)
-      moveGhost(e.clientX, e.clientY)
-
-      // Visual hint — origin fades a touch while dragging.
-      p.style.opacity = '0.35'
-    })
-
-    p.addEventListener('drag', (e) => {
-      if (e.clientX === 0 && e.clientY === 0) return  // ignore drag-end ghost frame
-      moveGhost(e.clientX, e.clientY)
-    })
-
-    p.addEventListener('dragend', () => {
-      if (dragged === p) p._wasDragged = true
-      p.style.opacity = ''
-      removeGhost()
-      dragged = null
-      originEntry = null
-    })
+    p.addEventListener('pointerdown',   onPonyPointerDown)
+    p.addEventListener('pointermove',   onPonyPointerMove)
+    p.addEventListener('pointerup',     onPonyPointerUp)
+    p.addEventListener('pointercancel', onPonyPointerCancel)
+    p.addEventListener('dragstart',   (e) => e.preventDefault())
+    p.addEventListener('focus', () => { lastFocusedPony = p })
   })
 
-  // ---------------------------------------------------------- PADDOCK DROP
+  // ---------------------------------------------------------- KEYBOARD
 
-  paddock.addEventListener('dragover', (e) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    paddock.classList.add('over')
-  })
-  paddock.addEventListener('dragleave', (e) => {
-    if (e.target === paddock) paddock.classList.remove('over')
-  })
+  const KEY_TO_HAT = Object.fromEntries(ringHats.map(h => [h.dataset.key, h.dataset.hat]))
 
-  paddock.addEventListener('drop', (e) => {
-    e.preventDefault()
-    paddock.classList.remove('over')
-    if (!dragged) return
+  document.addEventListener('keydown', (e) => {
+    const focused = document.activeElement
 
-    const r = paddock.getBoundingClientRect()
-    const x = e.clientX - r.left - dragOffset[0]
-    const y = e.clientY - r.top  - dragOffset[1]
-
-    // If horse is coming from the stable, move it to the paddock.
-    if (dragged.parentElement !== paddock) {
-      paddock.appendChild(dragged)
+    if (e.key === 'Escape' && isRingOpen()) {
+      e.preventDefault()
+      closeRing()
+      if (lastFocusedPony) lastFocusedPony.focus({ preventScroll: true })
+      return
     }
 
-    const wide = dragged.offsetWidth  || 130
-    const tall = dragged.offsetHeight || 80
-    const cx = Math.max(0, Math.min(r.width  - wide, x))
-    const cy = Math.max(0, Math.min(r.height - tall, y))
-    dragged.style.left = `${cx}px`
-    dragged.style.top  = `${cy}px`
-
-    sortPaddockZ()
-
-    // weighted-landing animation
-    if (!reduceMotion) {
-      dragged.classList.remove('is-landing')
-      void dragged.offsetWidth
-      dragged.classList.add('is-landing')
+    // hat keys (1-9, 0, -, =)
+    if (KEY_TO_HAT[e.key] !== undefined) {
+      const target = ringTargetPony
+        || (focused && focused.classList?.contains('pony') ? focused : lastFocusedPony)
+      if (target) {
+        e.preventDefault()
+        fitHat(target, KEY_TO_HAT[e.key])
+        if (isRingOpen()) {
+          ringHats.forEach(h => h.classList.toggle('is-active', h.dataset.key === e.key))
+        }
+        fadeHint()
+      }
+      return
     }
 
-    // stamp coordinate onto the corresponding studbook entry
-    const name = dragged.dataset.name
-    const homeEntry = [...entries].find(e => e.querySelector('.pony')?.dataset.name === name)
-                     || [...entries].find(e => e.contains(dragged))
-    stampCoord(homeEntry, cx + wide / 2, cy + tall / 2)
-  })
-
-  // ---------------------------------------------------------- DROP-BACK-TO-STABLE (undo)
-
-  // Dragging a horse back over the studbook returns it home.
-  stable.addEventListener('dragover', (e) => {
-    if (!dragged) return
-    if (dragged.parentElement === paddock) e.preventDefault()
-  })
-  stable.addEventListener('drop', (e) => {
-    if (!dragged) return
-    if (dragged.parentElement !== paddock) return
-    e.preventDefault()
-    returnToStable(dragged)
-  })
-
-  const returnToStable = (pony) => {
-    const name = pony.dataset.name
-    const home = [...entries].find(en => en.querySelector('.pony')?.dataset.name === name)
-                 || [...entries].find(en => {
-                   const img = en.querySelector('img')
-                   return img && pony.querySelector('img')?.src === img.src
-                 })
-    pony.style.left = ''
-    pony.style.top = ''
-    pony.style.removeProperty('--z')
-    pony.style.removeProperty('--depth')
-    if (home) {
-      // place pony as the first child of the entry (before the dl)
-      home.insertBefore(pony, home.firstChild)
+    if (focused && focused.classList?.contains('pony')) {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault()
+        const r = focused.getBoundingClientRect()
+        openRingAt(r.left + r.width / 2, r.top + r.height / 2, focused)
+        return
+      }
+      if (e.key.startsWith('Arrow')) {
+        e.preventDefault()
+        const step = e.shiftKey ? 32 : 8
+        const r = paddock.getBoundingClientRect()
+        const pw = focused.offsetWidth, ph = focused.offsetHeight
+        let x = focused._x, y = focused._y
+        if (e.key === 'ArrowLeft')  x -= step
+        if (e.key === 'ArrowRight') x += step
+        if (e.key === 'ArrowUp')    y -= step
+        if (e.key === 'ArrowDown')  y += step
+        x = clamp(x, 4, r.width - pw - 4)
+        y = clamp(y, 4, r.height - ph - 4)
+        setXY(focused, x, y)
+        sortDepth()
+        fadeHint()
+        return
+      }
     }
-  }
+
+    if ((e.key === 'r' || e.key === 'R') && !isRingOpen()) {
+      e.preventDefault()
+      recall()
+    }
+  })
 
   // ---------------------------------------------------------- RECALL
 
-  recall.addEventListener('click', () => {
-    const inPaddock = [...paddock.querySelectorAll('.pony')]
-    inPaddock.forEach(p => returnToStable(p))
-  })
-
-  // ---------------------------------------------------------- KEYBOARD: place via Shift+Enter
-
-  // For keyboard users: focus a horse, press 'P' to drop it in the
-  // paddock at a stable default position; press 'S' to send back.
-  document.addEventListener('keydown', (e) => {
-    const focused = document.activeElement
-    if (!focused || !focused.classList.contains('pony')) return
-    if (e.key === 'p' || e.key === 'P') {
-      e.preventDefault()
-      const idx = [...ponies].indexOf(focused)
-      if (focused.parentElement !== paddock) paddock.appendChild(focused)
-      const r = paddock.getBoundingClientRect()
-      const cols = 3
-      const col = idx % cols
-      const row = Math.floor(idx / cols)
-      const w = focused.offsetWidth  || 130
-      const h = focused.offsetHeight || 80
-      const cx = 40 + col * ((r.width - 80) / cols)
-      const cy = 40 + row * ((r.height - 80) / 2)
-      focused.style.left = `${Math.max(0, Math.min(r.width - w, cx))}px`
-      focused.style.top  = `${Math.max(0, Math.min(r.height - h, cy))}px`
-      sortPaddockZ()
+  function recall() {
+    closeRing()
+    ponies.forEach(p => {
+      const [hx, hy] = home.get(p) || [p._x, p._y]
+      setXY(p, hx, hy)
       if (!reduceMotion) {
-        focused.classList.remove('is-landing')
-        void focused.offsetWidth
-        focused.classList.add('is-landing')
+        p.classList.remove('is-landing')
+        void p.offsetWidth
+        p.classList.add('is-landing')
       }
-      const home = focused.closest('.entry')
-                 || [...entries].find(en => en.querySelector('.pony')?.dataset.name === focused.dataset.name)
-      stampCoord(home, cx + w / 2, cy + h / 2)
-    }
-    if (e.key === 's' || e.key === 'S') {
-      if (focused.parentElement === paddock) {
-        e.preventDefault()
-        returnToStable(focused)
-      }
-    }
-  })
+    })
+    sortDepth()
+  }
+  recallBtn.addEventListener('click', recall)
 
+  // ---------------------------------------------------------- INIT
+
+  placeRingHats()
+
+  function init() {
+    layoutHerd()
+    sortDepth()
+  }
+
+  if (document.readyState === 'complete') {
+    requestAnimationFrame(init)
+  } else {
+    window.addEventListener('load', () => requestAnimationFrame(init), { once: true })
+  }
+
+  // resize: keep relative positions but clamp inside new viewport
+  let resizeQ = false
+  window.addEventListener('resize', () => {
+    if (resizeQ) return
+    resizeQ = true
+    requestAnimationFrame(() => {
+      resizeQ = false
+      const r = paddock.getBoundingClientRect()
+      ponies.forEach(p => {
+        const pw = p.offsetWidth, ph = p.offsetHeight
+        const x = clamp(p._x || 0, 4, r.width  - pw - 4)
+        const y = clamp(p._y || 0, 4, r.height - ph - 4)
+        setXY(p, x, y)
+      })
+      sortDepth()
+    })
+  })
 })()
