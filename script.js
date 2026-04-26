@@ -554,6 +554,7 @@
             h.hats.splice(idx, 1)
             renderHats(h)
             persist()
+            try { document.dispatchEvent(new CustomEvent('pf:hat:remove', { detail: { horseId: h.kind, hatId: glyph } })) } catch (_) {}
           }
         }, 520)
       }, 1400)
@@ -565,8 +566,13 @@
 
   function pushHat(h, glyph, fromX, fromY) {
     // Push onto stack (max 3 — oldest falls off).
+    let bumped = null
     h.hats.push(glyph)
-    if (h.hats.length > MAX_HATS) h.hats.shift()
+    if (h.hats.length > MAX_HATS) bumped = h.hats.shift()
+    try {
+      if (bumped) document.dispatchEvent(new CustomEvent('pf:hat:remove', { detail: { horseId: h.kind, hatId: bumped } }))
+      document.dispatchEvent(new CustomEvent('pf:hat:add', { detail: { horseId: h.kind, hatId: glyph } }))
+    } catch (_) {}
 
     if (reduceMotion || fromX == null) {
       renderHats(h)
@@ -909,6 +915,8 @@
 
   // tap counter — only counts taps that opened the ring (not drags).
   function tapNote(h) {
+    // SPEC §3: click counters frozen in PLAY mode.
+    if (window.PFG && window.PFG.mode && window.PFG.mode.current() === 'play') return
     taps[h.kind] = (taps[h.kind] || 0) + 1
     try { localStorage.setItem(TAPS_KEY, JSON.stringify(taps)) } catch (_) {}
     // refresh notes on all clones of this kind
@@ -932,8 +940,9 @@
       return
     }
 
-    // G → procession
+    // G → procession (chill mode only — frozen during PLAY per SPEC §3)
     if ((e.key === 'g' || e.key === 'G') && !isRingOpen() && !showState.running && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (window.PFG && window.PFG.mode && window.PFG.mode.current() === 'play') return
       e.preventDefault()
       startProcession()
       return
@@ -1090,6 +1099,7 @@
   }
   function idleTurn() {
     if (showState.running || !horses.length) return
+    if (window.PFG && window.PFG.mode && window.PFG.mode.current() === 'play') return
     const h = horses[Math.floor(Math.random() * horses.length)]
     const img = h._el.querySelector('img')
     if (!img) return
@@ -1098,6 +1108,7 @@
   }
   function idleSwap() {
     if (showState.running || horses.length < 2) return
+    if (window.PFG && window.PFG.mode && window.PFG.mode.current() === 'play') return
     const a = horses[Math.floor(Math.random() * horses.length)]
     let b = horses[Math.floor(Math.random() * horses.length)]
     let guard = 0
@@ -1123,6 +1134,8 @@
   // ---------------------------------------------------------- TIME OF DAY
 
   function tickClock() {
+    // SPEC §3: time-of-day visual cycling frozen during PLAY.
+    if (window.PFG && window.PFG.mode && window.PFG.mode.current() === 'play') return
     const h = new Date().getHours()
     const isNight = (h >= 23 || h < 5)
     paddock.classList.toggle('is-night', isNight)
@@ -1612,4 +1625,462 @@
       if (data && restoreFrom(data)) showToast('scene loaded')
     }
   })
+
+  // ============================================================ GAME AUDIO CUES
+  // Per docs/game/AUDIO.md. Reuses actx, masterGain, muted, ensureAudio. Adds a
+  // shared compressor on the master bus and per-cue throttles.
+
+  let gameAudioWired = false
+  let compressor = null
+  let suppressUntil = 0
+  const lastFiredAt = Object.create(null)
+  function gameAudioReady() {
+    ensureAudio()
+    if (!audioReady || muted) return false
+    if (!gameAudioWired) {
+      try {
+        compressor = actx.createDynamicsCompressor()
+        compressor.threshold.value = -12
+        compressor.knee.value = 6
+        compressor.ratio.value = 4
+        compressor.attack.value = 0.003
+        compressor.release.value = 0.15
+        masterGain.disconnect()
+        masterGain.connect(compressor)
+        compressor.connect(actx.destination)
+      } catch (_) {}
+      gameAudioWired = true
+    }
+    if (actx.state === 'suspended') { try { actx.resume() } catch (_) {} }
+    if (actx.currentTime < suppressUntil) return false
+    return true
+  }
+  function throttle(name, ms) {
+    const t = (actx && actx.currentTime) || 0
+    const prev = lastFiredAt[name] || 0
+    if ((t - prev) * 1000 < ms) return false
+    lastFiredAt[name] = t
+    return true
+  }
+  function envOsc(t0, freq, peak, type, dur, attack) {
+    const o = actx.createOscillator()
+    const g = actx.createGain()
+    o.type = type
+    o.frequency.setValueAtTime(freq, t0)
+    g.gain.setValueAtTime(0, t0)
+    g.gain.linearRampToValueAtTime(peak, t0 + attack)
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur)
+    o.connect(g).connect(masterGain)
+    o.start(t0)
+    o.stop(t0 + dur + 0.02)
+    o.onended = () => { try { o.disconnect(); g.disconnect() } catch (_) {} }
+  }
+
+  const gameAudio = {
+    playRoundStart() {
+      if (!gameAudioReady() || !throttle('roundStart', 30)) return
+      const t = actx.currentTime
+      const notes = [523.25, 783.99, 1046.50]
+      notes.forEach((f, i) => envOsc(t + i * 0.066, f, 0.08, 'triangle', 0.120, 0.008))
+    },
+    playTick5s(isFinal) {
+      if (!gameAudioReady() || !throttle('tick', 200)) return
+      const t = actx.currentTime
+      const o = actx.createOscillator()
+      const f = actx.createBiquadFilter()
+      const g = actx.createGain()
+      o.type = 'square'
+      o.frequency.setValueAtTime(isFinal ? 1600 : 1200, t)
+      f.type = 'lowpass'; f.frequency.value = 2000; f.Q.value = 0.7
+      g.gain.setValueAtTime(0, t)
+      g.gain.linearRampToValueAtTime(0.03, t + 0.002)
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.030)
+      o.connect(f).connect(g).connect(masterGain)
+      o.start(t); o.stop(t + 0.05)
+      o.onended = () => { try { o.disconnect(); f.disconnect(); g.disconnect() } catch (_) {} }
+    },
+    playMatchCorrect(combo) {
+      if (!gameAudioReady() || !throttle('match', 30)) return
+      const t = actx.currentTime
+      envOsc(t, 523.25, 0.04, 'sine', 0.250, 0.004)
+      envOsc(t, 659.25, 0.035, 'sine', 0.250, 0.004)
+      envOsc(t, 783.99, 0.035, 'sine', 0.250, 0.004)
+      if ((combo | 0) >= 2) envOsc(t, 2093, 0.015, 'sine', 0.120, 0.004)
+    },
+    playMatchWrong() {
+      if (!gameAudioReady() || !throttle('wrong', 80)) return
+      const t = actx.currentTime
+      function note(start, freq) {
+        const dur = 0.090
+        ;[0, -18].forEach(cents => {
+          const o = actx.createOscillator()
+          const f = actx.createBiquadFilter()
+          const g = actx.createGain()
+          o.type = 'sawtooth'
+          o.frequency.setValueAtTime(freq, start)
+          o.detune.setValueAtTime(cents, start)
+          f.type = 'lowpass'; f.frequency.value = 1400; f.Q.value = 0.5
+          g.gain.setValueAtTime(0, start)
+          g.gain.linearRampToValueAtTime(0.03, start + 0.004)
+          g.gain.exponentialRampToValueAtTime(0.0001, start + dur)
+          o.connect(f).connect(g).connect(masterGain)
+          o.start(start); o.stop(start + dur + 0.02)
+          o.onended = () => { try { o.disconnect(); f.disconnect(); g.disconnect() } catch (_) {} }
+        })
+      }
+      note(t, 320); note(t + 0.090, 240)
+    },
+    playHeartLost() {
+      if (!gameAudioReady() || !throttle('heart', 150)) return
+      const t = actx.currentTime
+      const dur = 0.300
+      const len = Math.max(1, Math.floor(actx.sampleRate * dur))
+      const buf = actx.createBuffer(1, len, actx.sampleRate)
+      const data = buf.getChannelData(0)
+      for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1
+      const src = actx.createBufferSource()
+      src.buffer = buf
+      const filter = actx.createBiquadFilter()
+      filter.type = 'lowpass'; filter.Q.value = 1.0
+      filter.frequency.setValueAtTime(600, t)
+      filter.frequency.exponentialRampToValueAtTime(180, t + dur)
+      const g = actx.createGain()
+      g.gain.setValueAtTime(0, t)
+      g.gain.linearRampToValueAtTime(0.05, t + 0.012)
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
+      src.connect(filter).connect(g).connect(masterGain)
+      src.start(t); src.stop(t + dur + 0.02)
+      src.onended = () => { try { src.disconnect(); filter.disconnect(); g.disconnect() } catch (_) {} }
+    },
+    playComboPing(tier) {
+      if (!gameAudioReady() || !throttle('combo', 60)) return
+      const t = actx.currentTime
+      const n = Math.max(1, tier | 0)
+      const freq = Math.min(4186, 880 * Math.pow(1.5, n - 1))
+      envOsc(t, freq, 0.04, 'sine', 0.140, 0.003)
+      envOsc(t, freq, 0.01, 'triangle', 0.140, 0.003)
+    },
+    playGameOver() {
+      if (!gameAudioReady()) return
+      const t = actx.currentTime
+      const notes = [
+        { f: 440, on: 0,    dur: 0.360 },
+        { f: 349.23, on: 0.280, dur: 0.360 },
+        { f: 293.66, on: 0.560, dur: 0.360 },
+        { f: 220, on: 0.840, dur: 0.480 },
+      ]
+      notes.forEach(n => {
+        ;[+4, -4].forEach(cents => {
+          const o = actx.createOscillator()
+          const g = actx.createGain()
+          o.type = 'triangle'
+          o.frequency.setValueAtTime(n.f, t + n.on)
+          o.detune.setValueAtTime(cents, t + n.on)
+          g.gain.setValueAtTime(0, t + n.on)
+          g.gain.linearRampToValueAtTime(0.035, t + n.on + 0.012)
+          g.gain.exponentialRampToValueAtTime(0.0001, t + n.on + n.dur)
+          o.connect(g).connect(masterGain)
+          o.start(t + n.on); o.stop(t + n.on + n.dur + 0.02)
+          o.onended = () => { try { o.disconnect(); g.disconnect() } catch (_) {} }
+        })
+      })
+      suppressUntil = t + 1.200
+    },
+    playRoundSkip() {
+      if (!gameAudioReady() || !throttle('skip', 30)) return
+      // Reuse drop thud, pitched down 3 semitones, 85% gain.
+      const t = actx.currentTime
+      const o = actx.createOscillator()
+      const g = actx.createGain()
+      const baseFreq = 110 * Math.pow(2, -3 / 12)
+      o.type = 'sine'
+      o.frequency.setValueAtTime(baseFreq, t)
+      o.frequency.exponentialRampToValueAtTime(Math.max(20, baseFreq - 40), t + 0.10)
+      g.gain.setValueAtTime(0, t)
+      g.gain.linearRampToValueAtTime(0.7 * 0.85, t + 0.005)
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18)
+      o.connect(g).connect(masterGain)
+      o.start(t); o.stop(t + 0.20)
+      o.onended = () => { try { o.disconnect(); g.disconnect() } catch (_) {} }
+    },
+  }
+
+  // ============================================================ SANDBOX BRIDGE
+  // Exposes hat-stack reads/clears + horse-element lookup for the game engine.
+  window.PFG = window.PFG || {}
+  window.PFG.sandbox = {
+    audio: gameAudio,
+    getBoard() {
+      const out = {}
+      KINDS.forEach(k => { out[k.id] = [] })
+      // Use only original horses for the target match; clones are extra paddock filler.
+      horses.forEach(h => {
+        if (!h._isOriginal) return
+        out[h.kind] = h.hats.slice()
+      })
+      return out
+    },
+    getHorseEl(horseId) {
+      const h = horses.find(x => x.kind === horseId && x._isOriginal)
+      return h ? h._el : null
+    },
+    clearAllHats() {
+      horses.forEach(h => {
+        if (h.hats.length) {
+          h.hats.length = 0
+          renderHats(h)
+        }
+      })
+      persist()
+    },
+  }
+})()
+
+// ============================================================ GAME ENGINE
+// Wires the 12 game modules into a working dress-to-match loop. Owns its own
+// state. Talks to the sandbox via window.PFG.sandbox (audio, board reads,
+// hat clears, horse element lookup).
+;(function gameEngine() {
+  'use strict'
+
+  const HIGH_SCORE_KEY = 'pf:game.highScore'
+
+  let state = null
+  let timerHandle = 0
+  let timerStartedAt = 0
+  let timerSeconds = 30
+  let lastTickSec = -1
+  let hudInst = null
+  let cardInst = null
+  let initialized = false
+
+  function getBest() {
+    try { return Number(localStorage.getItem(HIGH_SCORE_KEY) || 0) || 0 } catch (_) { return 0 }
+  }
+  function saveBest(n) {
+    try { localStorage.setItem(HIGH_SCORE_KEY, String(n | 0)) } catch (_) {}
+  }
+  function audio() { return (window.PFG && window.PFG.sandbox && window.PFG.sandbox.audio) || {} }
+  function sandbox() { return (window.PFG && window.PFG.sandbox) || {} }
+
+  function targetEntries(target) {
+    return Array.isArray(target) ? target : [target]
+  }
+  function countHatsInTarget(target) {
+    return targetEntries(target).reduce((sum, t) => sum + ((t.hats && t.hats.length) || 0), 0)
+  }
+  function firstHorseEl(target) {
+    const id = targetEntries(target)[0].horseId
+    const fn = sandbox().getHorseEl
+    return fn ? fn(id) : null
+  }
+  function readBoard() {
+    const fn = sandbox().getBoard
+    return fn ? fn() : {}
+  }
+  function clearBoard() {
+    const fn = sandbox().clearAllHats
+    if (fn) fn()
+  }
+
+  function updateChips(target, board) {
+    const tc = window.PFG && window.PFG.targetCard
+    if (!tc) return
+    const entries = targetEntries(target)
+    const allWanted = new Set()
+    entries.forEach(t => (t.hats || []).forEach(h => allWanted.add(h)))
+    // For each wanted hat, mark met if present on its target horse.
+    entries.forEach(t => {
+      const stack = board[t.horseId] || []
+      const stackSet = new Set(stack)
+      ;(t.hats || []).forEach(hat => {
+        if (stackSet.has(hat)) tc.markHatMet(hat)
+        else tc.markHatUnmet(hat)
+      })
+    })
+  }
+
+  function cancelTimer() {
+    if (timerHandle) cancelAnimationFrame(timerHandle)
+    timerHandle = 0
+  }
+
+  function runTimer() {
+    cancelTimer()
+    lastTickSec = -1
+    function tick() {
+      if (!state) return
+      const elapsed = (performance.now() - timerStartedAt) / 1000
+      const remaining = Math.max(0, timerSeconds - elapsed)
+      window.PFG.hud.setTimer(remaining, timerSeconds)
+      const sec = Math.floor(remaining)
+      if (remaining <= 5 && remaining > 0 && sec !== lastTickSec) {
+        lastTickSec = sec
+        audio().playTick5s && audio().playTick5s(sec === 0)
+      }
+      if (remaining <= 0) { onTimeout(); return }
+      timerHandle = requestAnimationFrame(tick)
+    }
+    tick()
+  }
+
+  function startRound() {
+    if (!state) return
+    const target = window.PFG.rounds.generateRound(state.round)
+    state.currentTarget = target
+    window.PFG.targetCard.render(
+      Array.isArray(target)
+        ? { horses: target, roundNumber: state.round }
+        : Object.assign({ roundNumber: state.round }, target)
+    )
+    window.PFG.hud.setRound(state.round, getBest())
+    timerSeconds = window.PFG.difficulty.getTimerSeconds(state.round)
+    timerStartedAt = performance.now()
+    runTimer()
+    const horseEl = firstHorseEl(target)
+    if (horseEl) window.PFG.juice.zoomTo(horseEl)
+    audio().playRoundStart && audio().playRoundStart()
+    const firstId = targetEntries(target)[0].horseId
+    window.PFG.hud.announce('round ' + state.round + ', dress ' + firstId)
+  }
+
+  function startRun() {
+    state = {
+      round: 1,
+      score: 0,
+      combo: window.PFG.combo.create(),
+      hearts: window.PFG.hearts.create(3),
+      currentTarget: null,
+    }
+    window.PFG.hud.setMode('play')
+    window.PFG.hud.setScore(0)
+    window.PFG.hud.setCombo(0)
+    window.PFG.hud.setHearts(3)
+    window.PFG.hud.setRound(1, getBest())
+    if (cardInst) cardInst.style.display = ''
+    clearBoard()
+    startRound()
+  }
+
+  function endRun() {
+    cancelTimer()
+    state = null
+    window.PFG.hud.setMode('chill')
+    window.PFG.hud.setTimer(timerSeconds, timerSeconds)
+    if (cardInst) cardInst.style.display = 'none'
+    clearBoard()
+    window.PFG.hud.setRound(1, getBest())
+  }
+
+  function onHatChange() {
+    if (!state || !state.currentTarget) return
+    const board = readBoard()
+    const result = window.PFG.validate.match(state.currentTarget, board)
+    updateChips(state.currentTarget, board)
+    if (result.matched) onHit()
+  }
+
+  function onHit() {
+    if (!state) return
+    cancelTimer()
+    const elapsed = (performance.now() - timerStartedAt) / 1000
+    const remaining = Math.max(0, timerSeconds - elapsed)
+    window.PFG.combo.onHit(state.combo)
+    const baseScore = window.PFG.difficulty.getScoreFor(state.round, remaining, 1)
+    const mult = window.PFG.combo.getMultiplier(state.combo)
+    const finalScore = Math.floor(baseScore * mult)
+    state.score += finalScore
+    window.PFG.hud.setScore(state.score)
+    window.PFG.hud.setCombo(state.combo.count)
+    const horseEl = firstHorseEl(state.currentTarget)
+    if (horseEl) {
+      window.PFG.feedback.scoreFloat(finalScore, horseEl)
+      window.PFG.feedback.correctMatchCelebration(horseEl)
+    }
+    window.PFG.feedback.roundClearFlash()
+    window.PFG.targetCard.flash()
+    window.PFG.juice.shakeOnHit()
+    audio().playMatchCorrect && audio().playMatchCorrect(state.combo.count)
+    if (state.combo.count >= 2) audio().playComboPing && audio().playComboPing(state.combo.count)
+    setTimeout(() => {
+      if (!state) return
+      state.round += 1
+      clearBoard()
+      startRound()
+    }, 700)
+  }
+
+  function onTimeout() { onMiss() }
+
+  function onMiss() {
+    if (!state) return
+    cancelTimer()
+    window.PFG.combo.onMiss(state.combo)
+    window.PFG.hud.setCombo(0)
+    const horseEl = firstHorseEl(state.currentTarget)
+    if (horseEl) window.PFG.feedback.wrongShake(horseEl)
+    window.PFG.juice.shakeOnLoss()
+    audio().playMatchWrong && audio().playMatchWrong()
+    audio().playHeartLost && audio().playHeartLost()
+    const r = window.PFG.hearts.lose(state.hearts)
+    window.PFG.hud.setHearts(state.hearts.count)
+    if (r.wasLast) {
+      gameOver()
+    } else {
+      // SPEC §4: clear hat stacks on miss, restart same difficulty tier with fresh target.
+      clearBoard()
+      // Re-render same target (don't increment round), restart timer.
+      const target = state.currentTarget
+      window.PFG.targetCard.render(
+        Array.isArray(target)
+          ? { horses: target, roundNumber: state.round }
+          : Object.assign({ roundNumber: state.round }, target)
+      )
+      timerStartedAt = performance.now()
+      runTimer()
+    }
+  }
+
+  function gameOver() {
+    cancelTimer()
+    audio().playGameOver && audio().playGameOver()
+    const best = getBest()
+    const isHigh = state.score > best
+    if (isHigh) saveBest(state.score)
+    const longestCombo = (state.combo && state.combo.longest) || (state.combo && state.combo.count) || 0
+    window.PFG.combo.setLongest(longestCombo)
+    window.PFG.gameOver.show({
+      score: state.score,
+      round: state.round,
+      longestCombo: longestCombo,
+      isHighScore: isHigh,
+      onAgain: () => { window.PFG.gameOver.hide(); startRun() },
+      onChill: () => { window.PFG.gameOver.hide(); window.PFG.mode.enterChill() },
+    })
+  }
+
+  function init() {
+    if (initialized) return
+    initialized = true
+    hudInst = window.PFG.hud.mount(document.body)
+    // Mount target card inside the HUD root so chill-mode fade-out applies.
+    cardInst = window.PFG.targetCard.mount(hudInst || document.body)
+    if (cardInst) cardInst.style.display = 'none'
+    window.PFG.hud.setMode('chill')
+    window.PFG.hud.setRound(1, getBest())
+    window.PFG.mode.init({ onEnterPlay: startRun, onEnterChill: endRun })
+    window.PFG.hud.onModeToggle((mode) => {
+      if (mode === 'play') window.PFG.mode.enterPlay()
+      else window.PFG.mode.enterChill()
+    })
+    document.addEventListener('pf:hat:add', onHatChange)
+    document.addEventListener('pf:hat:remove', onHatChange)
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init)
+  } else {
+    // defer one frame so script.js IIFE has populated PFG.sandbox
+    requestAnimationFrame(init)
+  }
 })()
