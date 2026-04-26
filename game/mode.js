@@ -94,6 +94,10 @@
 
     if (key === 'Escape') {
       if (state === 'play') {
+        // If a transient overlay already consumed Esc (e.g. the hat ring or
+        // an in-progress procession), let it close first instead of quitting
+        // the run. script.js calls preventDefault() when it handles Esc.
+        if (e.defaultPrevented) return
         e.preventDefault()
         // SPEC §9: Esc-during-round is a free quit, no heart cost.
         enterChill()
