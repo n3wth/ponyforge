@@ -648,6 +648,66 @@ body {
   to { transform: rotate(360deg); }
 }
 
+/* ---------- iter5 combo reactions (subtle, single SVG each) ---------- */
+.fg-fx {
+  position: fixed;
+  pointer-events: none;
+  z-index: 900;
+  opacity: 0;
+  color: var(--accent);
+  transition: opacity 220ms var(--ease-soft);
+}
+.fg-fx.is-on { opacity: 1; }
+.fg-fx.is-out { opacity: 0; }
+
+/* shades · prism — a tiny noon sun arc above the head */
+.fg-fx--noon { width: 60px; height: 30px; }
+.fg-fx--noon svg { width: 100%; height: 100%; overflow: visible; }
+
+/* flower · iris — a wreath ring */
+.fg-fx--wreath { width: 64px; height: 64px; }
+.fg-fx--wreath svg { width: 100%; height: 100%; }
+.fg-fx.is-on .fg-fx--wreath__ring { animation: wreath-spin 3000ms linear; }
+@keyframes wreath-spin { to { transform: rotate(360deg); transform-origin: center; } }
+
+/* cap · onyx — a folded paper note */
+.fg-fx--note { width: 28px; height: 22px; }
+.fg-fx--note svg { width: 100%; height: 100%; }
+
+/* top · femme — a marquee underline */
+.fg-fx--marquee { width: 120px; height: 8px; }
+.fg-fx--marquee svg { width: 100%; height: 100%; overflow: visible; }
+
+/* disco · vesper — a single horizontal lacquer gleam */
+.fg-fx--lacquer { width: 80px; height: 12px; }
+.fg-fx--lacquer svg { width: 100%; height: 100%; overflow: visible; }
+.fg-fx.is-on .fg-fx--lacquer__sweep { animation: lacquer-sweep 1800ms var(--ease-soft); }
+@keyframes lacquer-sweep {
+  from { transform: translateX(-80px); }
+  to   { transform: translateX(80px); }
+}
+
+/* pin · iris — a small membership card */
+.fg-fx--card { width: 42px; height: 26px; }
+.fg-fx--card svg { width: 100%; height: 100%; }
+
+/* trans pin · sable — a sister knot */
+.fg-fx--knot { width: 38px; height: 38px; }
+.fg-fx--knot svg { width: 100%; height: 100%; }
+
+/* glitter · prism — a single molecular ring */
+.fg-fx--molecule { width: 44px; height: 44px; }
+.fg-fx--molecule svg { width: 100%; height: 100%; }
+.fg-fx.is-on .fg-fx--molecule__orbit { animation: molecule-spin 2400ms linear; transform-origin: center; transform-box: fill-box; }
+@keyframes molecule-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .fg-fx { transition: none; }
+  .fg-fx.is-on .fg-fx--wreath__ring,
+  .fg-fx.is-on .fg-fx--lacquer__sweep,
+  .fg-fx.is-on .fg-fx--molecule__orbit { animation: none; }
+}
+
 /* drifting petal (rose + Femme) */
 .petal {
   position: fixed;
@@ -1110,4 +1170,175 @@ body {
 @media (max-width: 560px) {
   .trails-toggle { font-size: 9px; padding: 0.4rem 0.6rem; letter-spacing: 0.14em; left: clamp(6rem, 26vw, 8rem); }
   .marks-stamp { font-size: 9px; left: clamp(11.5rem, 50vw, 14rem); letter-spacing: 0.14em; }
+}
+
+/* ============================================================ FIELD GUIDE (iter5) */
+
+.witness--keeper {
+  position: absolute;
+  bottom: clamp(0.85rem, 2vw, 1.4rem);
+  right: clamp(7rem, 16vw, 10rem);
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--accent);
+  pointer-events: none;
+  z-index: 4;
+  opacity: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  transition: opacity 600ms var(--ease-soft);
+}
+.witness--keeper.is-stamped { opacity: 0.85; }
+.witness--keeper .keeper-mark { font-size: 12px; line-height: 1; }
+
+.guide-btn {
+  position: absolute;
+  bottom: clamp(0.85rem, 2vw, 1.4rem);
+  left: clamp(13rem, 38vw, 22rem);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: lowercase;
+  color: var(--ink-3);
+  background: transparent;
+  border: 0;
+  padding: 0.5rem 0.4rem;
+  cursor: pointer;
+  z-index: 6;
+  opacity: 0.5;
+  transition: opacity 200ms var(--ease-soft), color 200ms var(--ease-soft);
+}
+.guide-btn:hover { opacity: 1; color: var(--ink); }
+.guide-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; opacity: 1; }
+.paddock.is-show .guide-btn { opacity: 0; pointer-events: none; transition: opacity 600ms var(--ease-soft); }
+
+@media (min-width: 561px) {
+  .guide-btn { display: none; }
+}
+
+.guide {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 220ms var(--ease-soft);
+}
+.guide.is-open { display: flex; opacity: 1; }
+.guide__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(243, 239, 230, 0.92);
+}
+.guide__card {
+  position: relative;
+  width: min(480px, calc(100vw - 2rem));
+  max-height: calc(100vh - 3rem);
+  background: var(--paper);
+  border: 1px solid var(--accent);
+  padding: 1.4rem 1.5rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  outline: none;
+}
+.guide__card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.guide__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.guide__plate {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: lowercase;
+  color: var(--ink-3);
+}
+.guide__close {
+  background: transparent;
+  border: 0;
+  font-family: var(--mono);
+  font-size: 18px;
+  line-height: 1;
+  color: var(--ink-3);
+  cursor: pointer;
+  padding: 0 0.2rem;
+}
+.guide__close:hover { color: var(--accent); }
+.guide__close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.guide__title {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 1.1rem;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+.guide__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.85;
+  color: var(--ink-2);
+  overflow-y: auto;
+  max-height: 60vh;
+  border-top: 1px solid var(--rule);
+  padding-top: 0.6rem;
+}
+.guide__list li {
+  display: grid;
+  grid-template-columns: 2.4em 9.5em 1fr auto;
+  gap: 0.5em;
+  align-items: baseline;
+  padding: 0.05rem 0;
+  white-space: nowrap;
+}
+.guide__list .gli__num { color: var(--ink-3); }
+.guide__list .gli__name { color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+.guide__list .gli__lead {
+  color: var(--rule);
+  overflow: hidden;
+  letter-spacing: 0.1em;
+  min-width: 1em;
+}
+.guide__list .gli__cap { color: var(--ink-2); text-align: right; }
+.guide__list .gli__date {
+  color: var(--accent);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  vertical-align: super;
+  margin-left: 0.4em;
+}
+.guide__list li.is-undiscovered .gli__name,
+.guide__list li.is-undiscovered .gli__cap { color: var(--ink-3); opacity: 0.7; }
+
+.guide__progress {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--ink-3);
+  border-top: 1px solid var(--rule);
+  padding-top: 0.7rem;
+}
+.guide__progress.is-complete { color: var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .guide { transition: none; }
+}
+
+@media (max-width: 560px) {
+  .guide__card { padding: 1.1rem 1rem; }
+  .guide__list { font-size: 10px; }
+  .guide__list li { grid-template-columns: 2em 7.5em 1fr auto; }
 }

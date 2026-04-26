@@ -118,8 +118,24 @@
 
       <p class="witness" id="witness" aria-hidden="true">(witnessed · MMXXVI)</p>
       <p class="witness--aurora" id="witnessAurora" aria-hidden="true">(saw aurora)</p>
+      <p class="witness--keeper" id="witnessKeeper" aria-hidden="true"><span class="keeper-mark">✦</span> (keeper)</p>
+
+      <button id="guideBtn" class="guide-btn" type="button" aria-label="Open field guide">field guide</button>
 
       <div class="toast" id="toast" aria-live="polite"></div>
+
+      <div class="guide" id="guide" role="dialog" aria-modal="true" aria-labelledby="guideTitle" aria-hidden="true">
+        <div class="guide__backdrop" data-guide-close></div>
+        <div class="guide__card" role="document" tabindex="-1">
+          <div class="guide__head">
+            <span class="guide__plate">field guide · plate XII</span>
+            <button class="guide__close" type="button" aria-label="Close field guide" data-guide-close>×</button>
+          </div>
+          <h2 class="guide__title" id="guideTitle">OBSERVED</h2>
+          <ol class="guide__list" id="guideList"></ol>
+          <p class="guide__progress" id="guideProgress">0 / 12 plates observed</p>
+        </div>
+      </div>
 
     </main>
 

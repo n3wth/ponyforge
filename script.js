@@ -915,15 +915,42 @@
 
   // ---------------------------------------------------------- COMBOS
 
+  // Twelve hat × pony combos. Each fires on the TOP hat of the stack.
+  // First match wins for the toast/guide id, but visuals can stack
+  // (e.g. disco always spins; if it's also vesper, lacquer also fires).
+  const COMBOS = [
+    { id: 'crown_sable',   glyph: '👑',     pony: 'Sable',  name: 'crown · sable',     cap: 'ribbon at her hooves',   fx: (h) => dropRibbon(h) },
+    { id: 'rose_femme',    glyph: '🥀',     pony: 'Femme',  name: 'rose · femme',      cap: 'petal in red velvet',    fx: (h) => driftPetal(h) },
+    { id: 'kiss_vesper',   glyph: '💋',     pony: 'Vesper', name: 'kiss · vesper',     cap: 'bow at the gate',        fx: (h) => bowHorse(h) },
+    { id: 'shades_prism',  glyph: '🕶️',    pony: 'Prism',  name: 'shades · prism',    cap: 'out at noon',            fx: (h) => fxNoon(h) },
+    { id: 'flower_iris',   glyph: '🌼',     pony: 'Iris',   name: 'flower · iris',     cap: 'wreath',                  fx: (h) => fxWreath(h) },
+    { id: 'cap_onyx',      glyph: '🧢',     pony: 'Onyx',   name: 'cap · onyx',        cap: 'after-school',           fx: (h) => fxNote(h) },
+    { id: 'top_femme',     glyph: '🎩',     pony: 'Femme',  name: 'top · femme',       cap: 'matinee',                fx: (h) => fxMarquee(h) },
+    { id: 'disco_vesper',  glyph: '🪩',     pony: 'Vesper', name: 'disco · vesper',    cap: 'lacquered',              fx: (h) => fxLacquer(h) },
+    { id: 'pin_iris',      glyph: '🏳️‍🌈', pony: 'Iris',   name: 'pin · iris',        cap: 'card-carrying',          fx: (h) => fxCard(h) },
+    { id: 'transpin_sable',glyph: '🏳️‍⚧️', pony: 'Sable',  name: 'trans pin · sable', cap: 'sister',                  fx: (h) => fxKnot(h) },
+    { id: 'glitter_prism', glyph: '✨',     pony: 'Prism',  name: 'glitter · prism',   cap: 'molecular',              fx: (h) => fxMolecule(h) },
+    // Disco on any pony other than Vesper still triggers the all-hats orbit AND counts as a plate.
+    { id: 'disco_any',     glyph: '🪩',     pony: '*',      name: 'disco · any',       cap: 'all hats orbit',         fx: () => spinAllHats() },
+  ]
+
   function maybeCombo(h, glyph) {
     const name = KIND_BY_ID[h.kind].name
-    if (glyph === '👑' && name === 'Sable') dropRibbon(h)
-    else if (glyph === '🪩') spinAllHats()
-    else if (glyph === '🥀' && name === 'Femme') driftPetal(h)
-    else if (glyph === '💋' && name === 'Vesper') {
-      h._el.classList.add('is-bowing')
-      setTimeout(() => h._el.classList.remove('is-bowing'), 1100)
-    }
+    // Disco always spins (preserve existing behavior on any pony).
+    if (glyph === '🪩') spinAllHats()
+    // Find the most-specific combo first (named pony before wildcard).
+    let match = COMBOS.find(c => c.glyph === glyph && c.pony === name)
+    if (!match) match = COMBOS.find(c => c.glyph === glyph && c.pony === '*')
+    if (!match) return
+    // Run combo fx (disco_any's spin already happened above; skip duplicate).
+    if (match.id !== 'disco_any') match.fx(h)
+    recordCombo(match)
+  }
+
+  function bowHorse(h) {
+    if (reduceMotion) { return }
+    h._el.classList.add('is-bowing')
+    setTimeout(() => h._el.classList.remove('is-bowing'), 1100)
   }
 
   function dropRibbon(h) {
@@ -964,6 +991,320 @@
     el.classList.add('is-drifting')
     setTimeout(() => el.remove(), 7400)
   }
+
+  // ---------- iter5 SVG-based combo reactions ----------
+  // Each places a small SVG element near the horse, fades in and out.
+
+  function fxAttach(h, modifier, svgMarkup, opts = {}) {
+    const r = h._el.getBoundingClientRect()
+    const el = document.createElement('div')
+    el.className = `fg-fx fg-fx--${modifier}`
+    el.innerHTML = svgMarkup
+    document.body.appendChild(el)
+    const ew = el.offsetWidth, eh = el.offsetHeight
+    const dx = opts.dx || 0
+    const dy = opts.dy != null ? opts.dy : -28
+    el.style.left = `${r.left + r.width / 2 - ew / 2 + dx}px`
+    el.style.top  = `${r.top - eh + dy}px`
+    const dur = opts.dur || 2800
+    if (reduceMotion) {
+      el.classList.add('is-on')
+      setTimeout(() => el.remove(), 1)
+      return
+    }
+    requestAnimationFrame(() => el.classList.add('is-on'))
+    setTimeout(() => el.classList.add('is-out'), dur - 240)
+    setTimeout(() => el.remove(), dur)
+  }
+
+  // shades · prism — sun arc above
+  function fxNoon(h) {
+    fxAttach(h, 'noon',
+      `<svg viewBox="0 0 60 30" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+         <path d="M6 26 A24 24 0 0 1 54 26"/>
+         <line x1="30" y1="2" x2="30" y2="6"/>
+         <line x1="12" y1="10" x2="14.5" y2="13"/>
+         <line x1="48" y1="10" x2="45.5" y2="13"/>
+       </svg>`)
+  }
+
+  // flower · iris — wreath ring
+  function fxWreath(h) {
+    fxAttach(h, 'wreath',
+      `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1">
+         <g class="fg-fx--wreath__ring">
+           <circle cx="32" cy="32" r="22"/>
+           <circle cx="32" cy="10" r="2.2" fill="currentColor"/>
+           <circle cx="54" cy="32" r="2.2" fill="currentColor"/>
+           <circle cx="32" cy="54" r="2.2" fill="currentColor"/>
+           <circle cx="10" cy="32" r="2.2" fill="currentColor"/>
+           <circle cx="48" cy="16" r="1.6" fill="currentColor"/>
+           <circle cx="48" cy="48" r="1.6" fill="currentColor"/>
+           <circle cx="16" cy="48" r="1.6" fill="currentColor"/>
+           <circle cx="16" cy="16" r="1.6" fill="currentColor"/>
+         </g>
+       </svg>`, { dur: 3200 })
+  }
+
+  // cap · onyx — folded paper note
+  function fxNote(h) {
+    fxAttach(h, 'note',
+      `<svg viewBox="0 0 28 22" fill="none" stroke="currentColor" stroke-width="1">
+         <path d="M3 3 L19 3 L25 9 L25 19 L3 19 Z"/>
+         <path d="M19 3 L19 9 L25 9"/>
+         <line x1="7" y1="13" x2="20" y2="13"/>
+         <line x1="7" y1="16" x2="16" y2="16"/>
+       </svg>`, { dur: 2600 })
+  }
+
+  // top · femme — marquee underline w/ tick marks
+  function fxMarquee(h) {
+    fxAttach(h, 'marquee',
+      `<svg viewBox="0 0 120 8" fill="none" stroke="currentColor" stroke-width="1">
+         <line x1="0" y1="4" x2="120" y2="4"/>
+         <line x1="6" y1="1" x2="6" y2="7"/>
+         <line x1="30" y1="1" x2="30" y2="7"/>
+         <line x1="60" y1="1" x2="60" y2="7"/>
+         <line x1="90" y1="1" x2="90" y2="7"/>
+         <line x1="114" y1="1" x2="114" y2="7"/>
+       </svg>`, { dy: -10, dur: 2800 })
+  }
+
+  // disco · vesper — single horizontal lacquer gleam
+  function fxLacquer(h) {
+    fxAttach(h, 'lacquer',
+      `<svg viewBox="-80 0 240 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" overflow="visible">
+         <line x1="-40" y1="6" x2="40" y2="6" class="fg-fx--lacquer__sweep"/>
+       </svg>`, { dur: 2200 })
+  }
+
+  // pin · iris — membership card
+  function fxCard(h) {
+    fxAttach(h, 'card',
+      `<svg viewBox="0 0 42 26" fill="none" stroke="currentColor" stroke-width="1">
+         <rect x="2" y="2" width="38" height="22"/>
+         <line x1="6" y1="9"  x2="22" y2="9"/>
+         <line x1="6" y1="13" x2="28" y2="13"/>
+         <line x1="6" y1="17" x2="18" y2="17"/>
+         <circle cx="34" cy="17" r="2.4"/>
+       </svg>`, { dur: 2800 })
+  }
+
+  // trans pin · sable — sister knot
+  function fxKnot(h) {
+    fxAttach(h, 'knot',
+      `<svg viewBox="0 0 38 38" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round">
+         <path d="M10 19 C 10 9, 28 9, 28 19 C 28 29, 10 29, 10 19 Z"/>
+         <path d="M19 10 C 9 10, 9 28, 19 28 C 29 28, 29 10, 19 10 Z"/>
+       </svg>`, { dur: 3000 })
+  }
+
+  // glitter · prism — molecular ring
+  function fxMolecule(h) {
+    fxAttach(h, 'molecule',
+      `<svg viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="1">
+         <g class="fg-fx--molecule__orbit">
+           <circle cx="22" cy="22" r="14"/>
+           <circle cx="22" cy="8"  r="2.2" fill="currentColor"/>
+           <circle cx="36" cy="22" r="2.2" fill="currentColor"/>
+           <circle cx="22" cy="36" r="2.2" fill="currentColor"/>
+           <circle cx="8"  cy="22" r="2.2" fill="currentColor"/>
+         </g>
+         <circle cx="22" cy="22" r="2" fill="currentColor"/>
+       </svg>`, { dur: 3000 })
+  }
+
+  // ---------------------------------------------------------- FIELD GUIDE
+
+  const FIELD_GUIDE_KEY = 'pf:fieldGuide'
+  /** @type {{[id:string]:{discoveredAt:string}} & {complete?: string}} */
+  let fieldGuide = (() => {
+    try { return JSON.parse(localStorage.getItem(FIELD_GUIDE_KEY) || '{}') || {} }
+    catch (_) { return {} }
+  })()
+  let hintShownOnce = !!fieldGuide.__hintShown
+
+  function saveFieldGuide() {
+    try { localStorage.setItem(FIELD_GUIDE_KEY, JSON.stringify(fieldGuide)) }
+    catch (_) {}
+  }
+
+  function discoveredCount() {
+    let n = 0
+    for (const c of COMBOS) if (fieldGuide[c.id]) n++
+    return n
+  }
+
+  function recordCombo(combo) {
+    const fresh = !fieldGuide[combo.id]
+    if (fresh) {
+      fieldGuide[combo.id] = { discoveredAt: new Date().toISOString() }
+      saveFieldGuide()
+      renderGuide()
+
+      const total = COMBOS.length
+      const found = discoveredCount()
+      // Hint trigger: after user has 3+ discovered, append hint to next toast (mobile gets the affordance instead).
+      const showHint = found >= 4 && !hintShownOnce && !isCoarsePointer()
+      const msg = `(observed: ${combo.cap}${showHint ? ' · press F' : ''})`
+      showGuideToast(msg)
+      if (showHint) {
+        hintShownOnce = true
+        fieldGuide.__hintShown = true
+        saveFieldGuide()
+      }
+      if (found === total && !fieldGuide.complete) {
+        fieldGuide.complete = new Date().toISOString()
+        saveFieldGuide()
+        setTimeout(stampKeeper, 1200)
+      }
+    }
+  }
+
+  function isCoarsePointer() {
+    return window.matchMedia && window.matchMedia('(pointer: coarse)').matches
+  }
+
+  // Distinct toast variant — longer (3s) and uses the corner family.
+  let guideToastTimer = 0
+  function showGuideToast(msg) {
+    toast.textContent = msg
+    toast.classList.add('is-on')
+    clearTimeout(guideToastTimer)
+    clearTimeout(toastTimer)
+    guideToastTimer = setTimeout(() => toast.classList.remove('is-on'), 3000)
+  }
+
+  const witnessKeeperEl = document.getElementById('witnessKeeper')
+  function stampKeeper() {
+    if (!witnessKeeperEl) return
+    witnessKeeperEl.classList.add('is-stamped')
+    witnessKeeperEl.setAttribute('aria-hidden', 'false')
+  }
+
+  // ---------- modal ----------
+  const guideEl = document.getElementById('guide')
+  const guideListEl = document.getElementById('guideList')
+  const guideProgressEl = document.getElementById('guideProgress')
+  const guideCardEl = guideEl?.querySelector('.guide__card')
+  const guideBtn = document.getElementById('guideBtn')
+  let guidePrevFocus = null
+
+  function pad2(n) { return n < 10 ? '0' + n : '' + n }
+  function fmtDate(iso) {
+    try {
+      const d = new Date(iso)
+      return `${pad2(d.getMonth() + 1)}·${pad2(d.getDate())}`
+    } catch (_) { return '' }
+  }
+
+  function renderGuide() {
+    if (!guideListEl) return
+    guideListEl.innerHTML = ''
+    COMBOS.forEach((c, i) => {
+      const li = document.createElement('li')
+      const found = fieldGuide[c.id]
+      const num = pad2(i + 1)
+      if (found) {
+        li.innerHTML =
+          `<span class="gli__num">${num}</span>` +
+          `<span class="gli__name">${c.name}</span>` +
+          `<span class="gli__lead">····················</span>` +
+          `<span class="gli__cap">${c.cap}<span class="gli__date">${fmtDate(found.discoveredAt)}</span></span>`
+      } else {
+        li.classList.add('is-undiscovered')
+        li.innerHTML =
+          `<span class="gli__num">${num}</span>` +
+          `<span class="gli__name">???</span>` +
+          `<span class="gli__lead">····················</span>` +
+          `<span class="gli__cap">???</span>`
+      }
+      guideListEl.appendChild(li)
+    })
+    const found = discoveredCount()
+    const total = COMBOS.length
+    if (found === total) {
+      guideProgressEl.textContent = 'complete · paddock keeper'
+      guideProgressEl.classList.add('is-complete')
+    } else {
+      guideProgressEl.textContent = `${found} / ${total} plates observed`
+      guideProgressEl.classList.remove('is-complete')
+    }
+  }
+
+  function isGuideOpen() { return guideEl && guideEl.classList.contains('is-open') }
+
+  function openGuide() {
+    if (!guideEl) return
+    renderGuide()
+    guidePrevFocus = document.activeElement
+    guideEl.classList.add('is-open')
+    guideEl.setAttribute('aria-hidden', 'false')
+    // Focus the card for keyboard accessibility.
+    setTimeout(() => guideCardEl && guideCardEl.focus({ preventScroll: true }), 0)
+  }
+
+  function closeGuide() {
+    if (!guideEl) return
+    guideEl.classList.remove('is-open')
+    guideEl.setAttribute('aria-hidden', 'true')
+    if (guidePrevFocus && typeof guidePrevFocus.focus === 'function') {
+      try { guidePrevFocus.focus({ preventScroll: true }) } catch (_) {}
+    }
+    guidePrevFocus = null
+  }
+
+  function toggleGuide() {
+    if (isGuideOpen()) closeGuide()
+    else openGuide()
+  }
+
+  // Close on backdrop / × button.
+  if (guideEl) {
+    guideEl.addEventListener('click', (e) => {
+      const t = e.target
+      if (t && (t.dataset?.guideClose !== undefined || t.closest?.('[data-guide-close]'))) {
+        closeGuide()
+      }
+    })
+    // Focus trap: keep tab within the card.
+    guideEl.addEventListener('keydown', (e) => {
+      if (!isGuideOpen()) return
+      if (e.key === 'Tab') {
+        const focusables = guideEl.querySelectorAll('button, [tabindex]:not([tabindex="-1"])')
+        if (!focusables.length) { e.preventDefault(); return }
+        const first = focusables[0]
+        const last = focusables[focusables.length - 1]
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+      }
+    })
+  }
+  if (guideBtn) {
+    guideBtn.addEventListener('click', (e) => { e.preventDefault(); toggleGuide() })
+  }
+
+  // F shortcut + Esc inside guide.
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return
+    const focused = document.activeElement
+    const inEditable = focused && (focused.classList?.contains('pony__name') || focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA' || focused.isContentEditable)
+    if (e.key === 'Escape' && isGuideOpen()) {
+      e.preventDefault()
+      closeGuide()
+      return
+    }
+    if ((e.key === 'f' || e.key === 'F') && !inEditable) {
+      // Don't fight procession.
+      if (showState && showState.running) return
+      e.preventDefault()
+      toggleGuide()
+    }
+  })
+
+  // Initial render so guide is correct if opened before any combos fire.
+  renderGuide()
+  if (fieldGuide.complete) stampKeeper()
 
   // ---------------------------------------------------------- RING
 
