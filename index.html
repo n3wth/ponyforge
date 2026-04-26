@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pony Pasture Parade · Queerly Uncanny</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <h1>Pony Pasture Parade</h1>
+        <p class="tagline">
+          Hyperreal, slightly wrong, and unmistakably queer. Drag the ponies
+          into pastures, dress them in delightful fashions, and click for
+          impossible noises.
+        </p>
+      </header>
+
+      <section class="toolbar" aria-label="Spectacle controls">
+        <button class="tool" data-action="parade" aria-pressed="false">
+          <span class="tool-emoji" aria-hidden="true">🏳️‍🌈</span>
+          Pride Parade
+        </button>
+        <button class="tool" data-action="scream-sync">
+          <span class="tool-emoji" aria-hidden="true">📣</span>
+          Scream Sync
+        </button>
+        <button class="tool" data-action="randomize">
+          <span class="tool-emoji" aria-hidden="true">🎰</span>
+          Outfit Randomizer
+        </button>
+        <button class="tool" data-action="spawn">
+          <span class="tool-emoji" aria-hidden="true">✨</span>
+          Spawn Pony
+        </button>
+        <button class="tool" data-action="whisper" aria-pressed="false">
+          <span class="tool-emoji" aria-hidden="true">💬</span>
+          Whisper Mode
+        </button>
+      </section>
+
+      <section class="controls" aria-label="Fashion rail">
+        <h2>Delightful Fashions</h2>
+        <div class="hats" id="hats" role="radiogroup" aria-label="Choose an accessory">
+          <button class="hat" data-hat="🎩" aria-label="Top hat" role="radio" aria-checked="true">🎩</button>
+          <button class="hat" data-hat="🌼" aria-label="Flower crown" role="radio" aria-checked="false">🌼</button>
+          <button class="hat" data-hat="🧢" aria-label="Cap" role="radio" aria-checked="false">🧢</button>
+          <button class="hat" data-hat="👑" aria-label="Crown" role="radio" aria-checked="false">👑</button>
+          <button class="hat" data-hat="🕶️" aria-label="Shades" role="radio" aria-checked="false">🕶️</button>
+          <button class="hat" data-hat="🪩" aria-label="Disco ball" role="radio" aria-checked="false">🪩</button>
+          <button class="hat" data-hat="🏳️‍🌈" aria-label="Pride pin" role="radio" aria-checked="false">🏳️‍🌈</button>
+          <button class="hat" data-hat="🏳️‍⚧️" aria-label="Trans pin" role="radio" aria-checked="false">🏳️‍⚧️</button>
+          <button class="hat" data-hat="💋" aria-label="Lipstick" role="radio" aria-checked="false">💋</button>
+          <button class="hat" data-hat="🦋" aria-label="Butterfly" role="radio" aria-checked="false">🦋</button>
+          <button class="hat" data-hat="✨" aria-label="Glitter" role="radio" aria-checked="false">✨</button>
+          <button class="hat" data-hat="🥀" aria-label="Wilted rose" role="radio" aria-checked="false">🥀</button>
+        </div>
+        <p class="hint">Pick an accessory, then click a pony. Click again to layer wrongness.</p>
+      </section>
+
+      <section class="pastures" aria-label="Pasture zone">
+        <article class="pasture" id="pasture-sunrise" data-pasture>
+          <h3>Dawnshine Meadow</h3>
+          <div class="pasture-floor"></div>
+        </article>
+        <article class="pasture" id="pasture-moonlight" data-pasture>
+          <h3>Moonlight Trawling Field</h3>
+          <div class="pasture-floor"></div>
+        </article>
+      </section>
+
+      <section class="stable" aria-label="Pony stable">
+        <h2>Stable</h2>
+        <div class="pony-row" id="pony-row">
+          <button class="pony" id="pony-iris" draggable="true"
+            data-portrait="./assets/pony-iris.png"
+            data-name="Iris"
+            data-pronouns="they/them">
+            <span class="hat-slot" aria-hidden="true">🏳️‍🌈</span>
+            <img class="portrait" src="./assets/pony-iris.png" alt="Hyperreal portrait of a dark horse with rainbow ribbons braided into the mane" />
+            <span class="pony-name" data-editable contenteditable="true" spellcheck="false">Iris</span>
+            <span class="pony-pronouns">they/them</span>
+          </button>
+          <button class="pony" id="pony-vesper" draggable="true"
+            data-portrait="./assets/pony-vesper.png"
+            data-name="Vesper"
+            data-pronouns="she/her">
+            <span class="hat-slot" aria-hidden="true">💋</span>
+            <img class="portrait" src="./assets/pony-vesper.png" alt="Hyperreal pale palomino horse with damp orange and pink mane" />
+            <span class="pony-name" data-editable contenteditable="true" spellcheck="false">Vesper</span>
+            <span class="pony-pronouns">she/her</span>
+          </button>
+          <button class="pony" id="pony-onyx" draggable="true"
+            data-portrait="./assets/pony-onyx.png"
+            data-name="Onyx"
+            data-pronouns="he/they">
+            <span class="hat-slot" aria-hidden="true">🦋</span>
+            <img class="portrait" src="./assets/pony-onyx.png" alt="Hyperreal black horse with magenta and cyan rim light and a holographic heart pin" />
+            <span class="pony-name" data-editable contenteditable="true" spellcheck="false">Onyx</span>
+            <span class="pony-pronouns">he/they</span>
+          </button>
+          <button class="pony" id="pony-prism" draggable="true"
+            data-portrait="./assets/pony-prism.png"
+            data-name="Prism"
+            data-pronouns="xe/xem">
+            <span class="hat-slot" aria-hidden="true">✨</span>
+            <img class="portrait" src="./assets/pony-prism.png" alt="Hyperreal chestnut horse with iridescent rainbow shimmer and glitter mustache" />
+            <span class="pony-name" data-editable contenteditable="true" spellcheck="false">Prism</span>
+            <span class="pony-pronouns">xe/xem</span>
+          </button>
+          <button class="pony" id="pony-sable" draggable="true"
+            data-portrait="./assets/pony-sable.png"
+            data-name="Sable"
+            data-pronouns="they/she">
+            <span class="hat-slot" aria-hidden="true">🏳️‍⚧️</span>
+            <img class="portrait" src="./assets/pony-sable.png" alt="Hyperreal dapple grey horse with non-binary flag braids and pearl choker" />
+            <span class="pony-name" data-editable contenteditable="true" spellcheck="false">Sable</span>
+            <span class="pony-pronouns">they/she</span>
+          </button>
+          <button class="pony" id="pony-femme" draggable="true"
+            data-portrait="./assets/pony-femme.png"
+            data-name="Femme Fatale"
+            data-pronouns="she/her">
+            <span class="hat-slot" aria-hidden="true">🥀</span>
+            <img class="portrait" src="./assets/pony-femme.png" alt="Hyperreal strawberry roan horse with fishnet fascinator and trans flag ribbons" />
+            <span class="pony-name" data-editable contenteditable="true" spellcheck="false">Femme Fatale</span>
+            <span class="pony-pronouns">she/her</span>
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <div class="whisper" id="whisper" aria-hidden="true"></div>
+
+    <script src="./script.js"></script>
+  </body>
+</html>
