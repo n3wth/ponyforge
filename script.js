@@ -264,6 +264,8 @@
     if (i === -1) return false
     horses.splice(i, 1)
     h._el.remove()
+    // clear this clone's trail — clones don't keep deep memory
+    if (typeof clearTrailFor === 'function') clearTrailFor(h)
     return true
   }
 
@@ -2011,6 +2013,33 @@
     x.font = '500 10px JetBrains Mono, monospace'
     x.fillText('STUDBOOK & MILLINERY · MMXXVI', 22, 60)
 
+    // trail dots (worn first, then active) — drawn under horses but over paper.
+    if (trailsOn) {
+      // worn marks
+      for (const m of wornMarks) {
+        const px = m.fx * W, py = m.fy * H
+        x.fillStyle = 'rgba(90,28,20,0.30)'
+        x.beginPath()
+        x.arc(px, py, 2.2, 0, Math.PI * 2)
+        x.fill()
+      }
+      const tNow = Date.now()
+      for (const key of Object.keys(trailsByTrack)) {
+        const arr = trailsByTrack[key]
+        for (const e of arr) {
+          const age = tNow - e.t
+          if (age >= FADE_MS || age < 0) continue
+          const lifeRemaining = 1 - age / FADE_MS
+          const op = 0.08 + lifeRemaining * 0.14
+          const px = e.fx * W, py = e.fy * H
+          x.fillStyle = `rgba(138,42,30,${op.toFixed(3)})`
+          x.beginPath()
+          x.arc(px, py, 1.9, 0, Math.PI * 2)
+          x.fill()
+        }
+      }
+    }
+
     // horses back-to-front
     const sorted = horses.slice().sort((a, b) => a._y - b._y)
     sorted.forEach(h => {
@@ -2093,6 +2122,277 @@
     }, 'image/png')
   }
 
+  // ---------------------------------------------------------- HISTORY / MEMORY (TRAILS)
+  //
+  // Each horse remembers its last 12 RESTING positions — positions held still
+  // for >= 1.5 seconds. Trail dots fade linearly over 60 minutes of real-world
+  // time. Surviving past 30 days promotes a dot to "worn marks" — persistent,
+  // capped at 200 globally. Persisted with timestamps so the fade clock keeps
+  // ticking across reloads. Originals' trails persist forever (keyed by kind);
+  // clones' trails are keyed by runtime id and cleared on delete.
+
+  const TRAILS_KEY      = 'pf:trails'
+  const WORN_KEY        = 'pf:wornMarks'
+  const TRAILS_VIS_KEY  = 'pf:trailsOn'
+  const TRAIL_PER_HORSE = 12
+  const REST_HOLD_MS    = 1500
+  const FADE_MS         = 60 * 60 * 1000     // 60 minutes
+  const WORN_AGE_MS     = 30 * 24 * 60 * 60 * 1000  // 30 days
+  const WORN_CAP        = 200
+  const SVG_NS          = 'http://www.w3.org/2000/svg'
+
+  const trailsLayer = document.getElementById('trails')
+  const trailsToggle = document.getElementById('trailsToggle')
+  const marksStamp   = document.getElementById('marksStamp')
+
+  /** @type {Object<string, Array<{fx:number, fy:number, t:number}>>} */
+  let trailsByTrack = {}
+  /** @type {Array<{fx:number, fy:number, t:number}>} */
+  let wornMarks = []
+  let trailsOn = true
+
+  function trackKey(h) {
+    return h._isOriginal ? `orig:${h.kind}` : `clone:${h.id}`
+  }
+
+  function loadTrails() {
+    try {
+      const raw = localStorage.getItem(TRAILS_KEY)
+      if (raw) {
+        const obj = JSON.parse(raw)
+        if (obj && typeof obj === 'object') trailsByTrack = obj
+      }
+    } catch (_) {}
+    try {
+      const raw2 = localStorage.getItem(WORN_KEY)
+      if (raw2) {
+        const arr = JSON.parse(raw2)
+        if (Array.isArray(arr)) wornMarks = arr
+      }
+    } catch (_) {}
+    try {
+      const v = localStorage.getItem(TRAILS_VIS_KEY)
+      if (v === '0') trailsOn = false
+    } catch (_) {}
+  }
+
+  function saveTrails() {
+    try { localStorage.setItem(TRAILS_KEY, JSON.stringify(trailsByTrack)) } catch (_) {}
+  }
+  function saveWorn() {
+    try { localStorage.setItem(WORN_KEY, JSON.stringify(wornMarks)) } catch (_) {}
+  }
+
+  // Convert paddock pixel coords to fractional [0,1] so trails survive resize.
+  function pxToFrac(x, y) {
+    const r = paddock.getBoundingClientRect()
+    const w = Math.max(1, r.width), h = Math.max(1, r.height)
+    return { fx: clamp(x / w, 0, 1), fy: clamp(y / h, 0, 1) }
+  }
+  function fracToPx(fx, fy) {
+    const r = paddock.getBoundingClientRect()
+    return { x: fx * r.width, y: fy * r.height }
+  }
+
+  // The "resting position" we track is the horse's body center (paddock coords).
+  function horseCenter(h) {
+    const pw = h._el.offsetWidth || 150, ph = h._el.offsetHeight || 84
+    return { cx: h._x + pw / 2, cy: h._y + ph * 0.78 }
+  }
+
+  // Tick: detect resting horses, push to trail when held >= REST_HOLD_MS.
+  function tickRestMemory() {
+    const t = Date.now()
+    let pushed = false
+    for (const h of horses) {
+      if (h === dragging) { h._restStart = 0; continue }
+      const { cx, cy } = horseCenter(h)
+      // Initialize tracking
+      if (h._restStart == null) {
+        h._restStart = 0
+        h._restCX = cx; h._restCY = cy
+        h._restRecorded = false
+      }
+      const moved = Math.hypot(cx - (h._restCX || cx), cy - (h._restCY || cy)) > 3
+      if (moved) {
+        h._restStart = t
+        h._restCX = cx; h._restCY = cy
+        h._restRecorded = false
+        continue
+      }
+      if (!h._restStart) h._restStart = t
+      if (!h._restRecorded && (t - h._restStart) >= REST_HOLD_MS) {
+        recordRest(h, cx, cy, t)
+        h._restRecorded = true
+      }
+    }
+    if (pushed) saveTrails()
+  }
+
+  function recordRest(h, cx, cy, t) {
+    const key = trackKey(h)
+    const arr = trailsByTrack[key] || (trailsByTrack[key] = [])
+    const { fx, fy } = pxToFrac(cx, cy)
+    // Avoid duplicate of the most recent entry (within ~6px).
+    const last = arr[arr.length - 1]
+    if (last) {
+      const px = fracToPx(last.fx, last.fy)
+      if (Math.hypot(px.x - cx, px.y - cy) < 6) {
+        last.t = t
+        saveTrails()
+        return
+      }
+    }
+    arr.push({ fx, fy, t })
+    while (arr.length > TRAIL_PER_HORSE) arr.shift()
+    saveTrails()
+  }
+
+  function clearTrailFor(h) {
+    const key = trackKey(h)
+    if (trailsByTrack[key]) {
+      delete trailsByTrack[key]
+      saveTrails()
+    }
+  }
+
+  // Promote any active dot older than WORN_AGE_MS to worn marks. Worn marks
+  // are no longer subject to the 60-min fade. Cap at WORN_CAP, oldest evict.
+  function promoteAndExpire() {
+    const t = Date.now()
+    let trailsDirty = false
+    let wornDirty = false
+    for (const key of Object.keys(trailsByTrack)) {
+      const arr = trailsByTrack[key]
+      const kept = []
+      for (const e of arr) {
+        const age = t - e.t
+        if (age >= WORN_AGE_MS) {
+          wornMarks.push({ fx: e.fx, fy: e.fy, t: e.t })
+          wornDirty = true
+          trailsDirty = true
+        } else if (age >= FADE_MS) {
+          // expired without surviving long enough
+          trailsDirty = true
+        } else {
+          kept.push(e)
+        }
+      }
+      if (kept.length !== arr.length) {
+        if (kept.length === 0) delete trailsByTrack[key]
+        else trailsByTrack[key] = kept
+      }
+    }
+    // Cap worn marks
+    if (wornMarks.length > WORN_CAP) {
+      wornMarks.sort((a, b) => a.t - b.t)
+      wornMarks = wornMarks.slice(wornMarks.length - WORN_CAP)
+      wornDirty = true
+    }
+    if (trailsDirty) saveTrails()
+    if (wornDirty) saveWorn()
+  }
+
+  // Render one SVG circle per dot. Skip dots that fall directly under a
+  // horse's current position (no clutter under feet).
+  function renderTrails() {
+    if (!trailsLayer) return
+    // Fast clear
+    while (trailsLayer.firstChild) trailsLayer.removeChild(trailsLayer.firstChild)
+    if (!trailsOn) return
+
+    const r = paddock.getBoundingClientRect()
+    if (r.width < 2 || r.height < 2) return
+
+    // Build a list of horse footprints to mask.
+    const footprints = horses.map(h => {
+      const { cx, cy } = horseCenter(h)
+      return { cx, cy, rad: (h._el.offsetWidth || 150) * 0.36 }
+    })
+
+    function underHorse(x, y) {
+      for (const f of footprints) {
+        const dx = x - f.cx, dy = y - f.cy
+        if (dx * dx + dy * dy < f.rad * f.rad) return true
+      }
+      return false
+    }
+
+    const t = Date.now()
+    const frag = document.createDocumentFragment()
+
+    // Worn marks first (deeper layer).
+    for (const m of wornMarks) {
+      const { x, y } = fracToPx(m.fx, m.fy)
+      if (underHorse(x, y)) continue
+      const c = document.createElementNS(SVG_NS, 'circle')
+      c.setAttribute('cx', x.toFixed(1))
+      c.setAttribute('cy', y.toFixed(1))
+      c.setAttribute('r', '2.2')
+      c.setAttribute('fill', '#5a1c14')
+      c.setAttribute('fill-opacity', '0.30')
+      frag.appendChild(c)
+    }
+
+    // Active trail dots.
+    for (const key of Object.keys(trailsByTrack)) {
+      const arr = trailsByTrack[key]
+      for (const e of arr) {
+        const age = t - e.t
+        if (age >= FADE_MS || age < 0) continue
+        const lifeRemaining = 1 - age / FADE_MS  // 1 → 0
+        // Map to opacity 8% → 22% (fresh = 22%, oldest survivable = 8%).
+        const op = 0.08 + lifeRemaining * 0.14
+        const { x, y } = fracToPx(e.fx, e.fy)
+        if (underHorse(x, y)) continue
+        const c = document.createElementNS(SVG_NS, 'circle')
+        c.setAttribute('cx', x.toFixed(1))
+        c.setAttribute('cy', y.toFixed(1))
+        c.setAttribute('r', '1.9')
+        c.setAttribute('fill', '#8a2a1e')
+        c.setAttribute('fill-opacity', op.toFixed(3))
+        frag.appendChild(c)
+      }
+    }
+
+    trailsLayer.appendChild(frag)
+  }
+
+  function setTrailsVisible(on) {
+    trailsOn = !!on
+    trailsLayer.classList.toggle('is-off', !trailsOn)
+    if (trailsToggle) trailsToggle.setAttribute('aria-pressed', String(trailsOn))
+    try { localStorage.setItem(TRAILS_VIS_KEY, trailsOn ? '1' : '0') } catch (_) {}
+    renderTrails()
+  }
+
+  if (trailsToggle) {
+    trailsToggle.addEventListener('click', (e) => {
+      e.stopPropagation()
+      setTrailsVisible(!trailsOn)
+    })
+  }
+
+  // (N marks) stamp on reload, when worn marks >= 50.
+  function maybeShowMarksStamp() {
+    if (!marksStamp) return
+    const n = wornMarks.length
+    if (n < 50) return
+    marksStamp.textContent = `(${n} marks)`
+    marksStamp.classList.add('is-on')
+    setTimeout(() => marksStamp.classList.remove('is-on'), 4000)
+  }
+
+  // Memory runs on cheap timers — independent of rAF, fine when tab is idle too.
+  setInterval(() => tickRestMemory(), 250)
+  setInterval(() => renderTrails(), 2000)
+  setInterval(() => promoteAndExpire(), 60_000)
+
+  // Re-render on resize so fractional coords update visually.
+  window.addEventListener('resize', () => {
+    requestAnimationFrame(renderTrails)
+  }, { passive: true })
+
   // ---------------------------------------------------------- INIT
 
   placeRingHats()
@@ -2120,6 +2420,13 @@
     setInterval(tickClock, 60_000)
     initWeather()
     scheduleIdle()
+
+    // History / memory: load, settle, render, show stamp if deep memory exists.
+    loadTrails()
+    promoteAndExpire()
+    setTrailsVisible(trailsOn)
+    maybeShowMarksStamp()
+
     requestAnimationFrame(tick)
   }
 
