@@ -3,67 +3,233 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Ponyforge</title>
+    <title>Ponyforge — Studbook &amp; Millinery</title>
     <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png" />
     <link rel="canonical" href="https://ponyforge.com/" />
-    <meta name="description" content="Put hats on ponies." />
-    <meta property="og:title" content="Ponyforge" />
-    <meta property="og:description" content="Put hats on ponies." />
+    <meta name="description" content="A small studbook. Six horses, twelve hats, one paddock." />
+    <meta property="og:title" content="Ponyforge — Studbook &amp; Millinery" />
+    <meta property="og:description" content="A small studbook. Six horses, twelve hats, one paddock." />
     <meta property="og:url" content="https://ponyforge.com/" />
     <meta property="og:image" content="https://ponyforge.com/assets/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main>
-      <h1>Ponyforge</h1>
+    <a class="skip" href="#paddock">Skip to paddock</a>
 
-      <div class="hats" id="hats">
-        <button class="hat" data-hat="🎩" aria-checked="true">🎩</button>
-        <button class="hat" data-hat="🌼">🌼</button>
-        <button class="hat" data-hat="🧢">🧢</button>
-        <button class="hat" data-hat="👑">👑</button>
-        <button class="hat" data-hat="🕶️">🕶️</button>
-        <button class="hat" data-hat="🪩">🪩</button>
-        <button class="hat" data-hat="🏳️‍🌈">🏳️‍🌈</button>
-        <button class="hat" data-hat="🏳️‍⚧️">🏳️‍⚧️</button>
-        <button class="hat" data-hat="💋">💋</button>
-        <button class="hat" data-hat="🦋">🦋</button>
-        <button class="hat" data-hat="✨">✨</button>
-        <button class="hat" data-hat="🥀">🥀</button>
+    <header class="masthead" role="banner">
+      <div class="masthead__l">
+        <span class="rule">Vol. I</span>
+        <span class="rule">№ 06</span>
       </div>
-
-      <div class="pasture" id="pasture"></div>
-
-      <div class="stable" id="stable">
-        <button class="pony" draggable="true">
-          <span class="hat-slot">🏳️‍🌈</span>
-          <img src="./assets/pony-iris.png" alt="Iris" />
-        </button>
-        <button class="pony" draggable="true">
-          <span class="hat-slot">💋</span>
-          <img src="./assets/pony-vesper.png" alt="Vesper" />
-        </button>
-        <button class="pony" draggable="true">
-          <span class="hat-slot">🦋</span>
-          <img src="./assets/pony-onyx.png" alt="Onyx" />
-        </button>
-        <button class="pony" draggable="true">
-          <span class="hat-slot">✨</span>
-          <img src="./assets/pony-prism.png" alt="Prism" />
-        </button>
-        <button class="pony" draggable="true">
-          <span class="hat-slot">🏳️‍⚧️</span>
-          <img src="./assets/pony-sable.png" alt="Sable" />
-        </button>
-        <button class="pony" draggable="true">
-          <span class="hat-slot">🥀</span>
-          <img src="./assets/pony-femme.png" alt="Femme" />
-        </button>
+      <h1 class="wordmark">
+        <span class="wordmark__pf">Ponyforge</span>
+        <span class="wordmark__sub">a studbook &amp; millinery</span>
+      </h1>
+      <div class="masthead__r">
+        <span class="rule">MMXXVI</span>
+        <span class="rule rule--live"><i></i>open</span>
       </div>
+    </header>
+
+    <main class="sheet">
+
+      <section class="prelude" aria-label="Colophon">
+        <p class="prelude__lede">
+          A small private collection of six horses, kept in one paddock,
+          dressed for the occasion.
+        </p>
+        <dl class="prelude__meta">
+          <div><dt>Plates</dt><dd>PF·001 — PF·006</dd></div>
+          <div><dt>Millinery</dt><dd>twelve pieces</dd></div>
+          <div><dt>Field</dt><dd>one paddock, fenced</dd></div>
+        </dl>
+      </section>
+
+      <section class="millinery" aria-labelledby="millinery-h">
+        <header class="section-head">
+          <span class="section-head__num">i.</span>
+          <h2 id="millinery-h" class="section-head__title">Millinery</h2>
+          <span class="section-head__rule">select a piece — then click a horse</span>
+        </header>
+
+        <div class="hats" id="hats" role="radiogroup" aria-label="Choose a hat">
+          <button class="hat" data-hat="🎩" role="radio" aria-checked="true" aria-label="Top hat">
+            <span class="hat__num">01</span><span class="hat__glyph">🎩</span><span class="hat__name">topper</span>
+          </button>
+          <button class="hat" data-hat="🌼" role="radio" aria-checked="false" aria-label="Daisy">
+            <span class="hat__num">02</span><span class="hat__glyph">🌼</span><span class="hat__name">daisy</span>
+          </button>
+          <button class="hat" data-hat="🧢" role="radio" aria-checked="false" aria-label="Cap">
+            <span class="hat__num">03</span><span class="hat__glyph">🧢</span><span class="hat__name">cap</span>
+          </button>
+          <button class="hat" data-hat="👑" role="radio" aria-checked="false" aria-label="Crown">
+            <span class="hat__num">04</span><span class="hat__glyph">👑</span><span class="hat__name">crown</span>
+          </button>
+          <button class="hat" data-hat="🕶️" role="radio" aria-checked="false" aria-label="Shades">
+            <span class="hat__num">05</span><span class="hat__glyph">🕶️</span><span class="hat__name">shades</span>
+          </button>
+          <button class="hat" data-hat="🪩" role="radio" aria-checked="false" aria-label="Disco">
+            <span class="hat__num">06</span><span class="hat__glyph">🪩</span><span class="hat__name">disco</span>
+          </button>
+          <button class="hat" data-hat="🏳️‍🌈" role="radio" aria-checked="false" aria-label="Pride">
+            <span class="hat__num">07</span><span class="hat__glyph">🏳️‍🌈</span><span class="hat__name">pride</span>
+          </button>
+          <button class="hat" data-hat="🏳️‍⚧️" role="radio" aria-checked="false" aria-label="Trans">
+            <span class="hat__num">08</span><span class="hat__glyph">🏳️‍⚧️</span><span class="hat__name">trans</span>
+          </button>
+          <button class="hat" data-hat="💋" role="radio" aria-checked="false" aria-label="Kiss">
+            <span class="hat__num">09</span><span class="hat__glyph">💋</span><span class="hat__name">kiss</span>
+          </button>
+          <button class="hat" data-hat="🦋" role="radio" aria-checked="false" aria-label="Butterfly">
+            <span class="hat__num">10</span><span class="hat__glyph">🦋</span><span class="hat__name">papillon</span>
+          </button>
+          <button class="hat" data-hat="✨" role="radio" aria-checked="false" aria-label="Sparkle">
+            <span class="hat__num">11</span><span class="hat__glyph">✨</span><span class="hat__name">sparkle</span>
+          </button>
+          <button class="hat" data-hat="🥀" role="radio" aria-checked="false" aria-label="Rose">
+            <span class="hat__num">12</span><span class="hat__glyph">🥀</span><span class="hat__name">rose</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="paddock-section" aria-labelledby="paddock-h">
+        <header class="section-head">
+          <span class="section-head__num">ii.</span>
+          <h2 id="paddock-h" class="section-head__title">The Paddock</h2>
+          <span class="section-head__rule">drag a horse here — it will stay where you put it</span>
+          <button class="recall" id="recall" type="button" aria-label="Recall all horses to the stable">recall</button>
+        </header>
+
+        <div class="paddock" id="paddock" aria-label="Paddock — drop zone">
+          <div class="paddock__corner paddock__corner--tl"><span>N</span></div>
+          <div class="paddock__corner paddock__corner--tr"><span>E</span></div>
+          <div class="paddock__corner paddock__corner--bl"><span>W</span></div>
+          <div class="paddock__corner paddock__corner--br"><span>S</span></div>
+          <div class="paddock__caption">
+            <span>fig. 1</span>
+            <span>the paddock at ponyforge — eight metres by five</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="studbook" aria-labelledby="studbook-h" id="studbook">
+        <header class="section-head">
+          <span class="section-head__num">iii.</span>
+          <h2 id="studbook-h" class="section-head__title">Studbook</h2>
+          <span class="section-head__rule">six entries — click to fit, drag to release</span>
+        </header>
+
+        <ol class="stable" id="stable" role="list">
+          <li class="entry">
+            <button class="pony" draggable="true" data-name="Iris" aria-label="Iris — fit hat">
+              <figure class="pony__fig">
+                <span class="pony__plate">PF·001</span>
+                <span class="hat-slot" aria-hidden="true">🏳️‍🌈</span>
+                <img src="./assets/pony-iris.png" alt="Portrait of Iris, a dark bay mare with braided forelock" />
+              </figure>
+            </button>
+            <dl class="card">
+              <dt>name</dt><dd>Iris</dd>
+              <dt>aet.</dt><dd>seven, a mare</dd>
+              <dt>gait</dt><dd>pacing, unhurried</dd>
+              <dt>note</dt><dd>keeps a single braid</dd>
+            </dl>
+          </li>
+
+          <li class="entry">
+            <button class="pony" draggable="true" data-name="Vesper" aria-label="Vesper — fit hat">
+              <figure class="pony__fig">
+                <span class="pony__plate">PF·002</span>
+                <span class="hat-slot" aria-hidden="true">💋</span>
+                <img src="./assets/pony-vesper.png" alt="Portrait of Vesper, a roan mare at dusk" />
+              </figure>
+            </button>
+            <dl class="card">
+              <dt>name</dt><dd>Vesper</dd>
+              <dt>aet.</dt><dd>nine, a mare</dd>
+              <dt>gait</dt><dd>amble, evening light</dd>
+              <dt>note</dt><dd>red mane, salt-bleached</dd>
+            </dl>
+          </li>
+
+          <li class="entry">
+            <button class="pony" draggable="true" data-name="Onyx" aria-label="Onyx — fit hat">
+              <figure class="pony__fig">
+                <span class="pony__plate">PF·003</span>
+                <span class="hat-slot" aria-hidden="true">🦋</span>
+                <img src="./assets/pony-onyx.png" alt="Portrait of Onyx, a black gelding in the woods" />
+              </figure>
+            </button>
+            <dl class="card">
+              <dt>name</dt><dd>Onyx</dd>
+              <dt>aet.</dt><dd>eleven, a gelding</dd>
+              <dt>gait</dt><dd>quiet, wood-loving</dd>
+              <dt>note</dt><dd>answers to whistles only</dd>
+            </dl>
+          </li>
+
+          <li class="entry">
+            <button class="pony" draggable="true" data-name="Prism" aria-label="Prism — fit hat">
+              <figure class="pony__fig">
+                <span class="pony__plate">PF·004</span>
+                <span class="hat-slot" aria-hidden="true">✨</span>
+                <img src="./assets/pony-prism.png" alt="Portrait of Prism, a chestnut at golden hour" />
+              </figure>
+            </button>
+            <dl class="card">
+              <dt>name</dt><dd>Prism</dd>
+              <dt>aet.</dt><dd>five, a gelding</dd>
+              <dt>gait</dt><dd>brisk, sun-chasing</dd>
+              <dt>note</dt><dd>likes to be photographed</dd>
+            </dl>
+          </li>
+
+          <li class="entry">
+            <button class="pony" draggable="true" data-name="Sable" aria-label="Sable — fit hat">
+              <figure class="pony__fig">
+                <span class="pony__plate">PF·005</span>
+                <span class="hat-slot" aria-hidden="true">🏳️‍⚧️</span>
+                <img src="./assets/pony-sable.png" alt="Portrait of Sable, a dappled grey in show ribbons" />
+              </figure>
+            </button>
+            <dl class="card">
+              <dt>name</dt><dd>Sable</dd>
+              <dt>aet.</dt><dd>eight, a stallion</dd>
+              <dt>gait</dt><dd>showy, deliberate</dd>
+              <dt>note</dt><dd>ribbons, always ribbons</dd>
+            </dl>
+          </li>
+
+          <li class="entry">
+            <button class="pony" draggable="true" data-name="Femme" aria-label="Femme — fit hat">
+              <figure class="pony__fig">
+                <span class="pony__plate">PF·006</span>
+                <span class="hat-slot" aria-hidden="true">🥀</span>
+                <img src="./assets/pony-femme.png" alt="Portrait of Femme, a roan in red velvet light" />
+              </figure>
+            </button>
+            <dl class="card">
+              <dt>name</dt><dd>Femme</dd>
+              <dt>aet.</dt><dd>ten, a mare</dd>
+              <dt>gait</dt><dd>theatrical, at her leisure</dd>
+              <dt>note</dt><dd>was once on a stage</dd>
+            </dl>
+          </li>
+        </ol>
+      </section>
+
+      <footer class="colophon" role="contentinfo">
+        <span>ponyforge.com</span>
+        <span>set in Fraunces &amp; JetBrains Mono</span>
+        <span>printed in the browser</span>
+      </footer>
     </main>
 
     <script src="./script.js"></script>
