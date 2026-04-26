@@ -114,6 +114,15 @@ body::after {
   background: radial-gradient(ellipse at center, transparent 40%, rgb(0 0 0 / 70%) 100%);
 }
 
+#chaos-bg {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+}
+
 .page {
   width: min(1200px, 96vw);
   margin: 0 auto;

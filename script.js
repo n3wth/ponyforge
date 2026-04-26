@@ -174,6 +174,7 @@ function toggleParade(button) {
   for (const pony of document.querySelectorAll(".pony")) {
     pony.classList.toggle("parade", parade);
   }
+  document.dispatchEvent(new CustomEvent("parade-toggle", { detail: parade }));
   if (parade) playPrideFanfare();
 }
 
