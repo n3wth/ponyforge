@@ -188,6 +188,10 @@
     note.className = 'pony__note'
     el.appendChild(note)
 
+    const friend = document.createElement('span')
+    friend.className = 'pony__friend'
+    el.appendChild(friend)
+
     bindHorseEvents(el, name, h)
     return el
   }
@@ -673,6 +677,7 @@
     updateBreath(t)
     updateGaze()
     updateClusterBoost(dt)
+    tickGroupDynamics(t, dt)
 
     requestAnimationFrame(tick)
   }
@@ -826,6 +831,7 @@
 
   function fitHat(h, glyph, fromX, fromY) {
     if (!h) return
+    noteHat(h, glyph)
     const stack = h._el.querySelector('.hat-stack')
 
     // Mood rejection: accept briefly, then shake off — don't pop the stack.
@@ -1040,6 +1046,7 @@
       if (showState.running) return
       ensureAudio()
       lastFocusedHorse = h
+      noteClick(h)
       dragging = h
       dragId = e.pointerId
       didMove = false
@@ -2393,6 +2400,310 @@
     requestAnimationFrame(renderTrails)
   }, { passive: true })
 
+  // ---------------------------------------------------------- GROUP DYNAMICS (ITER 4)
+  //
+  // Per-pair affinity tracking. Each unordered pair of horses (id1|id2 with
+  // id1 < id2) carries an affinity score that grows from co-clicks, co-located
+  // rest, and erodes slowly over time. The graph drives idle drift and a
+  // hover-revealed "closest to <name>" line.
+  //
+  // Track keys mirror the trail system: `orig:<kind>` for originals, and a
+  // runtime `clone:<id>` for clones (so cloned identities persist within a
+  // session but don't pollute long-term memory across reloads).
+
+  const AFFINITY_KEY        = 'pf:affinity'
+  const COCLICK_WINDOW_MS   = 5000
+  const COLOCATE_DIST       = 120
+  const COLOCATE_REST_VEL   = 0.3
+  const COLOCATE_RATE       = 0.05    // per second per pair
+  const COLOCATE_CAP        = 50      // max affinity per pair (prevent runaway)
+  const DECAY_PER_MIN       = 0.01    // per pair per minute
+  const IDLE_DRIFT_MS       = 60_000
+  const REVEAL_AFTER_MS     = 30_000  // drift must run >= 30s before hover reveal
+  const HOVER_REVEAL_MS     = 1000
+  const FRIEND_THRESHOLD    = 1.0
+  const LONELY_THRESHOLD    = 0.0
+  const DRIFT_FORCE         = 0.002   // px / frame^2 (multiplied by 60 below for px/s^2)
+  const DRIFT_VEL_CAP       = 0.1     // px / frame -> px/s = 6
+  const AFFINITY_SAVE_MS    = 5000
+
+  /** @type {Object<string, number>} */
+  let affinity = {}
+  let affinityDirty = false
+  let lastAffinitySave = 0
+  let lastDecayTickAt = 0
+
+  /** @type {Object<string, number>} */
+  const lastClickAt = {}   // horseId -> performance.now()
+
+  // Idle / drift state.
+  let lastInputAt = now()
+  let driftStartedAt = 0      // 0 = not currently drifting
+  let driftRunMs = 0          // total ms drift has accumulated this session
+
+  // Hover reveal state.
+  let hoverHorse = null
+  let hoverStartAt = 0
+  let revealedHorse = null
+
+  function trackId(h) {
+    return h._isOriginal ? `orig:${h.kind}` : `clone:${h.id}`
+  }
+  function pairKey(a, b) {
+    const ka = trackId(a), kb = trackId(b)
+    return ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`
+  }
+  function getAffinity(a, b) {
+    return affinity[pairKey(a, b)] || 0
+  }
+  function bumpAffinity(a, b, delta) {
+    if (a === b) return
+    const k = pairKey(a, b)
+    const v = (affinity[k] || 0) + delta
+    if (v <= 0) {
+      if (affinity[k]) { delete affinity[k]; affinityDirty = true }
+      return
+    }
+    affinity[k] = Math.min(COLOCATE_CAP, v)
+    affinityDirty = true
+  }
+
+  function loadAffinity() {
+    try {
+      const raw = localStorage.getItem(AFFINITY_KEY)
+      if (!raw) return
+      const obj = JSON.parse(raw)
+      if (obj && typeof obj === 'object') affinity = obj
+    } catch (_) {}
+  }
+  function saveAffinityIfDirty() {
+    if (!affinityDirty) return
+    const t = now()
+    if (t - lastAffinitySave < AFFINITY_SAVE_MS) return
+    try { localStorage.setItem(AFFINITY_KEY, JSON.stringify(affinity)) } catch (_) {}
+    affinityDirty = false
+    lastAffinitySave = t
+  }
+
+  // Co-click hook: called each time a horse is clicked (tap or drag start).
+  function noteClick(h) {
+    const t = now()
+    // Find any other horse clicked within window — bump pair.
+    for (const other of horses) {
+      if (other === h) continue
+      const ot = lastClickAt[other.id]
+      if (ot && (t - ot) <= COCLICK_WINDOW_MS) {
+        bumpAffinity(h, other, 1)
+      }
+    }
+    lastClickAt[h.id] = t
+  }
+
+  // Co-hat hook: called when a hat lands on a horse — if any other horse has
+  // received the same hat in its top slot recently, treat as co-applied.
+  const lastHatAt = {}  // `${horseId}|${glyph}` -> ts
+  function noteHat(h, glyph) {
+    const t = now()
+    for (const other of horses) {
+      if (other === h) continue
+      const k = `${other.id}|${glyph}`
+      const ot = lastHatAt[k]
+      if (ot && (t - ot) <= COCLICK_WINDOW_MS) {
+        bumpAffinity(h, other, 1)
+      }
+    }
+    lastHatAt[`${h.id}|${glyph}`] = t
+  }
+
+  // Lonely score: -sum of affinities with everyone else.
+  function lonelinessScore(h) {
+    let sum = 0
+    for (const other of horses) {
+      if (other === h) continue
+      sum += getAffinity(h, other)
+    }
+    return -sum
+  }
+
+  function topFriend(h) {
+    let best = null, bestVal = 0
+    for (const other of horses) {
+      if (other === h) continue
+      const v = getAffinity(h, other)
+      if (v > bestVal) { bestVal = v; best = other }
+    }
+    return best ? { horse: best, affinity: bestVal } : null
+  }
+
+  // Per-frame: co-located resting accrual + decay + idle drift forces.
+  let _coLocAccum = 0
+  let _decayAccum = 0
+  function tickGroupDynamics(t, dt) {
+    // 1) Co-located rest accrual at ~5Hz.
+    _coLocAccum += dt
+    if (_coLocAccum >= 0.2) {
+      const slice = _coLocAccum
+      _coLocAccum = 0
+      const n = horses.length
+      for (let i = 0; i < n; i++) {
+        const a = horses[i]
+        if (a === dragging) continue
+        if (Math.hypot(a._vx, a._vy) >= COLOCATE_REST_VEL * 60) continue
+        for (let j = i + 1; j < n; j++) {
+          const b = horses[j]
+          if (b === dragging) continue
+          if (Math.hypot(b._vx, b._vy) >= COLOCATE_REST_VEL * 60) continue
+          const aw = a._el.offsetWidth, ah = a._el.offsetHeight
+          const bw = b._el.offsetWidth, bh = b._el.offsetHeight
+          const dx = (a._x + aw / 2) - (b._x + bw / 2)
+          const dy = (a._y + ah / 2) - (b._y + bh / 2)
+          if (dx * dx + dy * dy < COLOCATE_DIST * COLOCATE_DIST) {
+            bumpAffinity(a, b, COLOCATE_RATE * slice)
+          }
+        }
+      }
+    }
+
+    // 2) Slow decay across all pairs (-0.01/min).
+    _decayAccum += dt
+    if (_decayAccum >= 1) {
+      const slice = _decayAccum
+      _decayAccum = 0
+      const decay = (DECAY_PER_MIN / 60) * slice
+      for (const k of Object.keys(affinity)) {
+        const v = affinity[k] - decay
+        if (v <= 0) { delete affinity[k]; affinityDirty = true }
+        else { affinity[k] = v; affinityDirty = true }
+      }
+    }
+
+    // 3) Idle drift forces.
+    const idleMs = (now() - lastInputAt)
+    const idle = idleMs >= IDLE_DRIFT_MS
+    if (idle && !showState.running && !dragging && !reduceMotion) {
+      if (!driftStartedAt) {
+        driftStartedAt = now()
+        if (herdStampEl) {
+          herdStampEl.classList.remove('is-off')
+          herdStampEl.classList.add('is-on')
+          herdStampEl.setAttribute('aria-hidden', 'false')
+        }
+      }
+      driftRunMs += dt * 1000
+      applyDriftForces(dt)
+    } else if (driftStartedAt) {
+      driftStartedAt = 0
+      if (herdStampEl) {
+        herdStampEl.classList.remove('is-on')
+        herdStampEl.classList.add('is-off')
+        herdStampEl.setAttribute('aria-hidden', 'true')
+      }
+    }
+
+    // 4) Friendship reveal on hover (only after drift has run >=30s once).
+    updateFriendReveal()
+
+    // 5) Debounced save.
+    saveAffinityIfDirty()
+  }
+
+  function applyDriftForces(dt) {
+    const { w, h: H } = bounds()
+    const accel = DRIFT_FORCE * 60 * 60   // convert per-frame^2 (60fps) to px/s^2
+    const cap = DRIFT_VEL_CAP * 60        // px/s
+    const corners = [[0, 0], [w, 0], [0, H], [w, H]]
+    for (const p of horses) {
+      if (p === dragging) continue
+      const friend = topFriend(p)
+      let tx = 0, ty = 0, has = false
+      if (friend && friend.affinity > 0.5) {
+        const f = friend.horse
+        tx = (f._x + f._el.offsetWidth / 2) - (p._x + p._el.offsetWidth / 2)
+        ty = (f._y + f._el.offsetHeight / 2) - (p._y + p._el.offsetHeight / 2)
+        has = true
+      } else {
+        // Nearest paddock corner.
+        const cx = p._x + p._el.offsetWidth / 2
+        const cy = p._y + p._el.offsetHeight / 2
+        let best = null, bestD = Infinity
+        for (const c of corners) {
+          const dx = c[0] - cx, dy = c[1] - cy
+          const d = dx * dx + dy * dy
+          if (d < bestD) { bestD = d; best = c }
+        }
+        if (best) {
+          tx = best[0] - cx
+          ty = best[1] - cy
+          has = true
+        }
+      }
+      if (!has) continue
+      const m = Math.hypot(tx, ty) || 1
+      p._vx += (tx / m) * accel * dt
+      p._vy += (ty / m) * accel * dt
+      // Cap drift velocity contribution.
+      const sp = Math.hypot(p._vx, p._vy)
+      if (sp > cap) {
+        p._vx = (p._vx / sp) * cap
+        p._vy = (p._vy / sp) * cap
+      }
+    }
+  }
+
+  function updateFriendReveal() {
+    // Reveal becomes available after drift has run >=30s, or — for reduced
+    // motion where drift never starts — after an equivalent idle window.
+    const idleMs = now() - lastInputAt
+    const driftedEnough = driftRunMs >= REVEAL_AFTER_MS
+    const reducedQualifies = reduceMotion && idleMs >= (IDLE_DRIFT_MS + REVEAL_AFTER_MS)
+    if ((!driftedEnough && !reducedQualifies) || !hoverHorse) {
+      if (revealedHorse) {
+        revealedHorse._el.classList.remove('is-friend-revealed')
+        const f = revealedHorse._el.querySelector('.pony__friend')
+        if (f) f.textContent = ''
+        revealedHorse = null
+      }
+      return
+    }
+    if ((now() - hoverStartAt) < HOVER_REVEAL_MS) return
+    if (revealedHorse === hoverHorse) return
+    // Reveal closest friend if affinity > threshold.
+    const tf = topFriend(hoverHorse)
+    if (!tf || tf.affinity <= FRIEND_THRESHOLD) return
+    if (revealedHorse && revealedHorse !== hoverHorse) {
+      revealedHorse._el.classList.remove('is-friend-revealed')
+    }
+    const otherName = tf.horse.name || KIND_BY_ID[tf.horse.kind].name
+    const fEl = hoverHorse._el.querySelector('.pony__friend')
+    if (fEl) fEl.textContent = `closest to ${otherName.toLowerCase()}`
+    hoverHorse._el.classList.add('is-friend-revealed')
+    revealedHorse = hoverHorse
+  }
+
+  // Pointer hover bookkeeping (uses the existing window pointermove signal).
+  function refreshHover(e) {
+    const target = e.target && e.target.closest ? e.target.closest('.pony') : null
+    if (!target) {
+      if (hoverHorse) { hoverHorse = null; hoverStartAt = 0 }
+      return
+    }
+    const h = horses.find(x => x._el === target)
+    if (!h) return
+    if (h !== hoverHorse) {
+      hoverHorse = h
+      hoverStartAt = now()
+    }
+  }
+  window.addEventListener('pointermove', refreshHover, { passive: true })
+  window.addEventListener('pointerover', refreshHover, { passive: true })
+
+  // Idle bookkeeping. Reset on any pointer or key activity.
+  ;['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'].forEach(ev => {
+    window.addEventListener(ev, () => { lastInputAt = now() }, { passive: true })
+  })
+
+  const herdStampEl = document.getElementById('herdStamp')
+
   // ---------------------------------------------------------- INIT
 
   placeRingHats()
@@ -2420,6 +2731,9 @@
     setInterval(tickClock, 60_000)
     initWeather()
     scheduleIdle()
+
+    // Group dynamics: load persisted affinity graph.
+    loadAffinity()
 
     // History / memory: load, settle, render, show stamp if deep memory exists.
     loadTrails()
@@ -2453,6 +2767,14 @@
       snapshotHome()
       sortDepth()
     })
+  })
+
+  // Force-save affinity on hide/unload (debounce window may be open).
+  window.addEventListener('pagehide', () => {
+    if (affinityDirty) {
+      try { localStorage.setItem(AFFINITY_KEY, JSON.stringify(affinity)) } catch (_) {}
+      affinityDirty = false
+    }
   })
 
   // hash change
