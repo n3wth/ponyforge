@@ -168,6 +168,9 @@ initToolbar();
 initWhisper();
 initStableDrop();
 schedulePastureWander();
+buildFieldGuide();
+openLoreFromHash();
+window.addEventListener("hashchange", openLoreFromHash);
 
 function initHats() {
   hatsEl[0].classList.add("selected");
@@ -278,6 +281,9 @@ function initToolbar() {
         break;
       case "whisper":
         toggleWhisper(button);
+        break;
+      case "print":
+        window.print();
         break;
     }
   });
@@ -512,6 +518,9 @@ function showLoreCard(pony) {
           <div><dt>sign</dt><dd class="lore-card-sign"></dd></div>
           <div><dt>snack</dt><dd class="lore-card-snack"></dd></div>
         </dl>
+        <button class="lore-card-share" type="button" aria-label="Share this pony">
+          <span aria-hidden="true">↗</span> Share
+        </button>
         <p class="lore-card-foot">field-issued · do not laminate</p>
       </div>
     </div>
@@ -524,6 +533,10 @@ function showLoreCard(pony) {
   overlay.querySelector(".lore-card-snack").textContent = lore.snack;
 
   overlay.addEventListener("click", (event) => {
+    if (event.target.closest(".lore-card-share")) {
+      sharePony(pony, lore);
+      return;
+    }
     if (event.target === overlay || event.target.closest(".lore-card-close")) {
       closeLoreCard();
     }
@@ -555,4 +568,94 @@ function makeSerial(id) {
 
 function playPrideFanfare() {
   if (window.PonyAudio) window.PonyAudio.parade();
+}
+
+function ponySlug(id) {
+  return id.replace(/^pony-/, "");
+}
+
+function shareUrlFor(id) {
+  return `https://ponyforge.com/#pony=${ponySlug(id)}`;
+}
+
+async function sharePony(pony, lore) {
+  const url = shareUrlFor(pony.id);
+  const title = `${lore.name} · PONYFORGE`;
+  const text = `${lore.name} (${lore.pronouns}) — ${lore.vibe}. Meet them at PONYFORGE.`;
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, text, url });
+      return;
+    } catch (err) {
+      if (err && err.name === "AbortError") return;
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast("link copied · paste with feeling");
+  } catch (err) {
+    showToast(url);
+  }
+}
+
+function showToast(message) {
+  const toast = document.getElementById("toast");
+  if (!toast) return;
+  toast.textContent = message;
+  toast.classList.add("visible");
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toast.classList.remove("visible"), 2200);
+}
+
+function openLoreFromHash() {
+  const match = location.hash.match(/pony=([\w-]+)/);
+  if (!match) return;
+  const id = `pony-${match[1]}`;
+  const pony = document.getElementById(id);
+  if (pony && LORE[id]) showLoreCard(pony);
+}
+
+function buildFieldGuide() {
+  const guide = document.getElementById("field-guide");
+  if (!guide) return;
+  const ids = [
+    "pony-iris", "pony-vesper", "pony-onyx",
+    "pony-prism", "pony-sable", "pony-femme",
+  ];
+  const cards = ids.map((id) => {
+    const lore = LORE[id];
+    if (!lore) return "";
+    const portraitEl = document.querySelector(`#${id} .portrait`);
+    const portrait = portraitEl ? portraitEl.getAttribute("src") : "";
+    return `
+      <article class="fg-card">
+        <img class="fg-portrait" src="${portrait}" alt="" />
+        <div class="fg-body">
+          <h3 class="fg-name">${escapeHtml(lore.name)}</h3>
+          <p class="fg-pronouns">${escapeHtml(lore.pronouns)}</p>
+          <p class="fg-bio">${escapeHtml(lore.bio)}</p>
+          <dl class="fg-meta">
+            <div><dt>vibe</dt><dd>${escapeHtml(lore.vibe)}</dd></div>
+            <div><dt>sign</dt><dd>${escapeHtml(lore.sign)}</dd></div>
+            <div><dt>snack</dt><dd>${escapeHtml(lore.snack)}</dd></div>
+          </dl>
+        </div>
+      </article>
+    `;
+  }).join("");
+  guide.innerHTML = `
+    <header class="fg-header">
+      <p class="fg-eyebrow">PONYFORGE · Field Guide · ponyforge.com</p>
+      <h2 class="fg-title">A Census of Slightly Wrong Ponies</h2>
+      <p class="fg-sub">Six full-time residents. Pronouns observed, snacks confirmed, lore notarized by the meadow.</p>
+    </header>
+    <div class="fg-grid">${cards}</div>
+    <footer class="fg-footer">field-issued · do not laminate</footer>
+  `;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;",
+  }[c]));
 }
