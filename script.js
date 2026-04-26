@@ -328,6 +328,18 @@
     if ((e.key === 'r' || e.key === 'R') && !isRingOpen()) {
       e.preventDefault()
       recall()
+      return
+    }
+
+    if ((e.key === 'g' || e.key === 'G') && !isRingOpen() && !showState.running) {
+      e.preventDefault()
+      startProcession()
+      return
+    }
+
+    if (e.key === 'Escape' && showState.running) {
+      e.preventDefault()
+      abortProcession()
     }
   })
 
@@ -347,6 +359,273 @@
     sortDepth()
   }
   recallBtn.addEventListener('click', recall)
+
+  // ---------------------------------------------------------- PROCESSION (show mode)
+  //
+  // One keystroke (G) transforms the page from quiet curatorial mode into
+  // a 14-second procession. Each horse, in studbook order, walks single-file
+  // across the paddock, pausing in the center for a beat while a mono caption
+  // names them. After the last horse exits, a "(witnessed)" stamp lands in
+  // the corner and persists — proof the show happened. Esc aborts cleanly.
+
+  const BIOS = {
+    Iris:   'foaled in fog · prefers the long way home',
+    Vesper: 'shows up at dusk · answers to a whistle',
+    Onyx:   'walks the woods at the back of the herd',
+    Prism:  'faster on the turn than on the straight',
+    Sable:  'three blue ribbons · one stolen apple',
+    Femme:  'velvet light · a rose in her teeth',
+  }
+
+  const PROC_TIMING = {
+    fadeUI:    600,    // ui dims, paddock shifts mood
+    walkIn:    1700,   // offstage-left to center
+    pause:     1500,   // hold in center, caption shows
+    walkOut:   1700,   // center to offstage-right
+    overlap:   500,    // next horse starts walking in before previous exits
+    settle:    900,    // stamp + return to home
+  }
+
+  const procEl     = document.getElementById('procession')
+  const procName   = procEl?.querySelector('.procession__name')
+  const procBio    = procEl?.querySelector('.procession__bio')
+  const procCount  = document.getElementById('processionCounter')
+  const witnessEl  = document.getElementById('witness')
+  const affordanceEl = document.getElementById('affordance')
+
+  const showState = {
+    running: false,
+    aborted: false,
+    timers: [],
+    saved: new Map(),
+  }
+
+  // hydrate persistent witness stamp on load (no animation)
+  try {
+    if (localStorage.getItem('pf:witnessed') === '1' && witnessEl) {
+      witnessEl.classList.add('is-stamped')
+      witnessEl.setAttribute('aria-hidden', 'false')
+    }
+  } catch (_) {}
+
+  function schedule(fn, ms) {
+    const id = setTimeout(() => {
+      showState.timers = showState.timers.filter(t => t !== id)
+      if (!showState.aborted) fn()
+    }, ms)
+    showState.timers.push(id)
+    return id
+  }
+
+  function clearTimers() {
+    showState.timers.forEach(id => clearTimeout(id))
+    showState.timers = []
+  }
+
+  function showCaption(name, bio, idx, total) {
+    if (!procEl) return
+    procName.textContent = name
+    procBio.textContent  = bio
+    procCount.textContent = `${String(idx).padStart(2, '0')} / ${String(total).padStart(2, '0')}`
+    procEl.classList.add('is-visible')
+    procEl.setAttribute('aria-hidden', 'false')
+  }
+
+  function hideCaption() {
+    if (!procEl) return
+    procEl.classList.remove('is-visible')
+    procEl.setAttribute('aria-hidden', 'true')
+  }
+
+  function stampWitness(justNow) {
+    if (!witnessEl) return
+    witnessEl.classList.add('is-stamped')
+    witnessEl.setAttribute('aria-hidden', 'false')
+    if (justNow) {
+      witnessEl.classList.remove('is-just-stamped')
+      void witnessEl.offsetWidth
+      witnessEl.classList.add('is-just-stamped')
+    }
+    try { localStorage.setItem('pf:witnessed', '1') } catch (_) {}
+  }
+
+  function reducedMotionShow() {
+    // a tiny static "poem" version of the show, then stamp
+    if (!procEl) return
+    showState.running = true
+    const lines = [
+      ['the procession', 'six horses, in studbook order'],
+      ['Iris',   BIOS.Iris],
+      ['Vesper', BIOS.Vesper],
+      ['Onyx',   BIOS.Onyx],
+      ['Prism',  BIOS.Prism],
+      ['Sable',  BIOS.Sable],
+      ['Femme',  BIOS.Femme],
+      ['—', 'the paddock returns to itself'],
+    ]
+    let i = 0
+    const tick = () => {
+      if (showState.aborted || i >= lines.length) {
+        hideCaption()
+        stampWitness(true)
+        showState.running = false
+        showState.aborted = false
+        return
+      }
+      const [name, bio] = lines[i]
+      showCaption(name, bio, i, lines.length - 1)
+      i++
+      schedule(tick, 1400)
+    }
+    paddock.classList.add('is-show')
+    schedule(tick, 200)
+  }
+
+  function startProcession() {
+    if (showState.running) return
+    showState.running = true
+    showState.aborted = false
+
+    if (reduceMotion) {
+      reducedMotionShow()
+      return
+    }
+
+    // close any open ring, drop drag state
+    closeRing()
+    if (dragging) {
+      dragging.classList.remove('is-lifted')
+      dragging.style.setProperty('--lift', '0')
+      dragging = null
+    }
+    fadeHint()
+
+    // freeze positions so we can restore them after
+    showState.saved.clear()
+    ponies.forEach(p => showState.saved.set(p, [p._x, p._y]))
+
+    paddock.classList.add('is-show')
+
+    const r = paddock.getBoundingClientRect()
+    const probe = ponies[0]
+    const pw = probe.offsetWidth || 150
+    const ph = probe.offsetHeight || 84
+    const centerX = (r.width - pw) / 2
+    const centerY = (r.height - ph) / 2
+    const offLeftX  = -pw - 80
+    const offRightX = r.width + 80
+
+    // park everyone offstage-left, dimmed
+    ponies.forEach(p => {
+      p.classList.add('is-offstage')
+      p.style.setProperty('--depth', '0')
+      p.style.setProperty('--z', '500')
+      // disable transitions just for the snap-to-offstage
+      const prev = p.style.transition
+      p.style.transition = 'none'
+      setXY(p, offLeftX, centerY)
+      // force reflow then restore transitions
+      void p.offsetWidth
+      p.style.transition = prev
+    })
+
+    // small pause for UI fade + paddock mood shift, then begin walking
+    schedule(() => runWalkSequence(centerX, centerY, offRightX), PROC_TIMING.fadeUI)
+  }
+
+  function runWalkSequence(centerX, centerY, offRightX) {
+    if (showState.aborted) return
+    const order = ponies.slice()
+    const total = order.length
+
+    // Each horse: walkIn -> pause+caption -> walkOut.
+    // Adjacent horses overlap slightly so the procession feels continuous.
+    const per = PROC_TIMING.walkIn + PROC_TIMING.pause + PROC_TIMING.walkOut
+    const stride = per - PROC_TIMING.overlap
+
+    order.forEach((p, i) => {
+      const t0 = i * stride
+
+      // walk-in: offstage-left to center
+      schedule(() => {
+        if (showState.aborted) return
+        p.classList.remove('is-offstage')
+        p.classList.add('is-onstage')
+        // keep slight bob via --r? simple straight path is calmer.
+        setXY(p, centerX, centerY)
+      }, t0)
+
+      // arrive + caption
+      schedule(() => {
+        if (showState.aborted) return
+        showCaption(p.dataset.name, BIOS[p.dataset.name] || '', i + 1, total)
+      }, t0 + PROC_TIMING.walkIn)
+
+      // walk-out: center to offstage-right
+      schedule(() => {
+        if (showState.aborted) return
+        if (i < total - 1) hideCaption()
+        p.classList.remove('is-onstage')
+        p.classList.add('is-dim')
+        setXY(p, offRightX, centerY)
+      }, t0 + PROC_TIMING.walkIn + PROC_TIMING.pause)
+    })
+
+    // total duration of last horse's walk-out
+    const showEnd = (total - 1) * stride + per
+
+    // stamp + restore
+    schedule(() => {
+      if (showState.aborted) return
+      hideCaption()
+      stampWitness(true)
+    }, showEnd + 200)
+
+    schedule(() => {
+      if (showState.aborted) return
+      finishProcession()
+    }, showEnd + PROC_TIMING.settle + 200)
+  }
+
+  function finishProcession() {
+    paddock.classList.remove('is-show')
+    ponies.forEach(p => {
+      p.classList.remove('is-offstage', 'is-onstage', 'is-dim')
+      const [hx, hy] = showState.saved.get(p) || [p._x, p._y]
+      // disable transition for snap-back, then re-enable
+      const prev = p.style.transition
+      p.style.transition = 'none'
+      setXY(p, hx, hy)
+      void p.offsetWidth
+      p.style.transition = prev
+    })
+    sortDepth()
+    showState.running = false
+    showState.aborted = false
+    showState.saved.clear()
+  }
+
+  function abortProcession() {
+    if (!showState.running) return
+    showState.aborted = true
+    clearTimers()
+    hideCaption()
+    // restore positions immediately, no transitions
+    paddock.classList.remove('is-show')
+    ponies.forEach(p => {
+      p.classList.remove('is-offstage', 'is-onstage', 'is-dim')
+      const saved = showState.saved.get(p)
+      const prev = p.style.transition
+      p.style.transition = 'none'
+      if (saved) setXY(p, saved[0], saved[1])
+      void p.offsetWidth
+      p.style.transition = prev
+    })
+    sortDepth()
+    showState.running = false
+    showState.saved.clear()
+    // aborted shows do not stamp — the show didn't happen
+  }
 
   // ---------------------------------------------------------- INIT
 

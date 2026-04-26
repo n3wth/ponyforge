@@ -464,6 +464,189 @@ body {
   .ring__hat .g { font-size: 18px; }
 }
 
+/* ============================================================ AFFORDANCE (press G) */
+
+.affordance {
+  position: absolute;
+  top: clamp(1rem, 2.4vw, 1.75rem);
+  right: clamp(7rem, 12vw, 9rem);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  pointer-events: none;
+  z-index: 5;
+  padding: 0.5rem 0;
+  transition: opacity 380ms var(--ease-soft);
+}
+.affordance__key {
+  display: inline-grid;
+  place-items: center;
+  width: 18px; height: 18px;
+  border: 1px solid var(--ink-3);
+  color: var(--ink);
+  font-size: 10px;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+.affordance__sep { color: var(--accent); }
+
+.paddock.is-show .affordance,
+.paddock.is-show .hint,
+.paddock.is-show .recall,
+.paddock.is-show .ring,
+.paddock.is-show .compass,
+.paddock.is-show .fold {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 600ms var(--ease-soft);
+}
+
+@media (max-width: 720px) {
+  .affordance { right: clamp(6rem, 18vw, 7.5rem); font-size: 9px; letter-spacing: 0.14em; }
+}
+
+/* ============================================================ PROCESSION */
+
+.paddock.is-show {
+  background-color: var(--paper-2);
+  transition: background-color 1200ms var(--ease-soft);
+}
+.paddock.is-show .stamp {
+  opacity: 0.55;
+  transition: opacity 800ms var(--ease-soft);
+}
+
+/* a soft horizon line down the paddock's middle - the path they walk */
+.paddock.is-show::after {
+  content: "";
+  position: absolute;
+  left: 6%; right: 6%;
+  top: 50%;
+  height: 1px;
+  background: repeating-linear-gradient(
+    to right,
+    var(--ink-3) 0, var(--ink-3) 4px,
+    transparent 4px, transparent 10px
+  );
+  opacity: 0.35;
+  pointer-events: none;
+  z-index: 1;
+  animation: horizon-fade 800ms var(--ease-soft) both;
+}
+@keyframes horizon-fade {
+  from { opacity: 0; }
+  to   { opacity: 0.35; }
+}
+
+.paddock.is-show .pony {
+  transition:
+    transform 1400ms var(--ease-soft),
+    filter 600ms var(--ease-soft);
+}
+.paddock.is-show .pony.is-offstage {
+  opacity: 0;
+  transition: transform 1400ms var(--ease-soft), opacity 400ms var(--ease-soft);
+}
+.paddock.is-show .pony.is-onstage {
+  filter: saturate(1.05) brightness(1);
+  z-index: 9000 !important;
+}
+.paddock.is-show .pony.is-dim {
+  filter: saturate(0.6) brightness(0.92);
+  opacity: 0.55;
+}
+
+.procession {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(2rem, 8vw, 4rem);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 50;
+  max-width: min(92vw, 540px);
+  transition: opacity 360ms var(--ease-soft);
+}
+.procession.is-visible { opacity: 1; }
+
+.procession__caption {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.procession__name {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-variation-settings: "opsz" 144;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  line-height: 1;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.procession__bio {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+.procession__counter {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 560px) {
+  .procession__name { font-size: 1.3rem; }
+  .procession__bio { font-size: 10px; letter-spacing: 0.04em; }
+}
+
+/* ============================================================ WITNESS STAMP */
+
+.witness {
+  position: absolute;
+  bottom: clamp(0.85rem, 2vw, 1.4rem);
+  left: clamp(1rem, 2.4vw, 1.75rem);
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--accent);
+  pointer-events: none;
+  z-index: 4;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 600ms var(--ease-soft), transform 600ms var(--ease-soft);
+}
+.witness.is-stamped {
+  opacity: 1;
+  transform: translateY(0);
+}
+.witness.is-just-stamped {
+  animation: witness-stamp 700ms var(--ease-over) both;
+}
+@keyframes witness-stamp {
+  0%   { opacity: 0; transform: translateY(4px) scale(1.4) rotate(-3deg); }
+  40%  { opacity: 1; transform: translateY(0)    scale(1.06) rotate(-1deg); }
+  100% { opacity: 1; transform: translateY(0)    scale(1)    rotate(0deg); }
+}
+
 /* ============================================================ A11Y / MOTION */
 
 @media (prefers-reduced-motion: reduce) {
